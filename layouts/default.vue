@@ -79,7 +79,7 @@ const signOut = async () => {
 <!--    </header>-->
     <!-- ========== END HEADER ========== -->
 
-    <div class="mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="mx-auto px-4 sm:px-6 lg:px-8 min-h-screen">
       <div class="grid grid-cols-12 gap-6 pt-6 pb-10">
         <aside v-if="user" class="hidden md:block md:col-span-3 lg:col-span-3">
           <UCard>

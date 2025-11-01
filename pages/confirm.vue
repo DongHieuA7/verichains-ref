@@ -1,17 +1,46 @@
 <script setup lang="ts">
 const user = useSupabaseUser()
+const supabase = useSupabaseClient()
 
-watch(user, () => {
-  if (user.value) {
+definePageMeta({
+  layout: false // No layout during redirect
+})
+
+const checkAndRedirect = async () => {
+  if (!user.value) return
+  
+  try {
+    const { data } = await supabase
+      .from('admins')
+      .select('id')
+      .eq('id', user.value.id)
+      .maybeSingle()
+    
+    if (data) {
+      // User is admin, redirect to admin projects
+      return navigateTo('/admin/projects')
+    } else {
+      // User is regular user, redirect to commissions
+      return navigateTo('/commissions')
+    }
+  } catch (error) {
+    console.error('Error checking admin status:', error)
+    // Default to commissions if error
     return navigateTo('/commissions')
   }
-}, { immediate: true })
+}
+
+watch(user, checkAndRedirect, { immediate: true })
+
+onMounted(() => {
+  checkAndRedirect()
+})
 </script>
 
 <template>
-  <div>
-    <p class="u-text-black flex h-[100vh] w-full justify-center items-center">
-      Redirecting...
-    </p>
+  <div class="w-full flex items-center justify-center min-h-screen">
+    <div class="text-center">
+      <p class="text-gray-500">Redirecting...</p>
+    </div>
   </div>
 </template>
