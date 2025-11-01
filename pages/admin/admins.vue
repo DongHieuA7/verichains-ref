@@ -1,6 +1,8 @@
 <script setup lang="ts">
+const { t } = useI18n()
+
 definePageMeta({ middleware: ['auth','admin'] })
-useSeoMeta({ title: 'Admin - Admins' })
+useSeoMeta({ title: `Admin - ${t('users.admins')}` })
 
 const isLoading = ref(false)
 const admins = ref<any[]>([])
@@ -26,10 +28,40 @@ onMounted(fetchAdmins)
 const inviteAdmin = async () => {
   try {
     isLoading.value = true
-    await $fetch('/api/admin/invite', { method: 'POST', body: { email: form.email, name: form.name, makeAdmin: true } })
+    
+    // Get session token
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      throw new Error('Not authenticated')
+    }
+    
+    await $fetch('/api/admin/invite', { 
+      method: 'POST', 
+      body: { email: form.email, name: form.name, makeAdmin: true },
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`
+      }
+    })
+    
+    const invitedEmail = form.email
     await fetchAdmins()
     form.email = ''
     form.name = ''
+    isInviteOpen.value = false
+    
+    const toast = useToast()
+    toast.add({
+      color: 'green',
+      title: t('users.adminInvited'),
+      description: t('users.invitationSent', { email: invitedEmail }),
+    })
+  } catch (error: any) {
+    const toast = useToast()
+    toast.add({
+      color: 'red',
+      title: t('users.failedToInviteAdmin'),
+      description: error.message || t('users.pleaseTryAgain'),
+    })
   } finally {
     isLoading.value = false
   }
@@ -37,39 +69,39 @@ const inviteAdmin = async () => {
 </script>
 
 <template>
-  <div class="container mx-auto py-6">
+  <div class="container mx-auto">
     <UCard>
       <template #header>
         <div class="flex items-center justify-between">
-          <h2 class="font-semibold">Admins</h2>
-          <UButton color="primary" @click="isInviteOpen = true">Invite Admin</UButton>
+          <h2 class="font-semibold">{{ $t('users.admins') }}</h2>
+          <UButton color="primary" @click="isInviteOpen = true">{{ $t('users.inviteAdmin') }}</UButton>
         </div>
       </template>
 
       <UTable :rows="admins" :columns="[
-        { key: 'email', label: 'Email' },
-        { key: 'name', label: 'Name' },
-        { key: 'created_at', label: 'Created' },
+        { key: 'email', label: $t('common.email') },
+        { key: 'name', label: $t('common.name') },
+        { key: 'created_at', label: $t('projects.created') },
       ]" />
     </UCard>
 
     <UModal v-model="isInviteOpen">
       <UCard>
         <template #header>
-          <h3 class="font-semibold">Invite Admin</h3>
+          <h3 class="font-semibold">{{ $t('users.inviteAdmin') }}</h3>
         </template>
-        <UForm id="invite-admin-form" @submit.prevent="inviteAdmin">
-          <UFormGroup label="Email">
-            <UInput v-model="form.email" type="email" />
+        <div class="space-y-4">
+          <UFormGroup :label="$t('common.email')">
+            <UInput v-model="form.email" type="email" @keyup.enter="inviteAdmin" />
           </UFormGroup>
-          <UFormGroup label="Name">
-            <UInput v-model="form.name" />
+          <UFormGroup :label="$t('common.name')">
+            <UInput v-model="form.name" @keyup.enter="inviteAdmin" />
           </UFormGroup>
-        </UForm>
+        </div>
         <template #footer>
           <div class="flex justify-end gap-2">
-            <UButton color="gray" variant="soft" @click="isInviteOpen = false">Cancel</UButton>
-            <UButton form="invite-admin-form" type="submit" color="primary" :loading="isLoading" :disabled="isLoading || !form.email">Invite</UButton>
+            <UButton color="gray" variant="soft" @click="isInviteOpen = false">{{ $t('common.cancel') }}</UButton>
+            <UButton color="primary" @click="inviteAdmin" :loading="isLoading" :disabled="isLoading || !form.email">{{ $t('users.inviteAdmin') }}</UButton>
           </div>
         </template>
       </UCard>

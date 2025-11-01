@@ -50,13 +50,13 @@
           <UCard>
             <div class="space-y-4">
               <div class="flex justify-center">
-                <img src="/icon.svg" class="h-[80px]">
+                <img src="/favicon.png" class="h-[80px]">
               </div>
-              <p class="text-lg font-bold text-center">Sign in with Google</p>
+              <p class="text-lg font-bold text-center">{{ $t('signIn.signInWithGoogle') }}</p>
               <UButton 
                 :loading="isLoading"
                 :disabled="isLoading"
-                color="red" label="Continue with Google" 
+                color="red" :label="$t('signIn.continueWithGoogle')" 
                 icon="i-lucide-mail" block
                 @click="signInWithGoogle" />
             </div>

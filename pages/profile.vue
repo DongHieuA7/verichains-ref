@@ -1,6 +1,8 @@
 <script setup lang="ts">
-definePageMeta({ middleware: 'auth' })
-useSeoMeta({ title: 'My Profile' })
+const { t } = useI18n()
+
+definePageMeta({ middleware: ['auth', 'user-only'] })
+useSeoMeta({ title: t('profile.myProfile') })
 
 // Mock user profile data (replace with Supabase later)
 const profile = reactive({
@@ -26,9 +28,9 @@ const toast = useToast()
 const copyRef = async () => {
   try {
     await navigator.clipboard.writeText(refLink.value)
-    toast.add({ color: 'green', title: 'Referral link copied', icon: 'i-lucide-check-circle' })
+    toast.add({ color: 'green', title: $t('profile.referralLinkCopied'), icon: 'i-lucide-check-circle' })
   } catch {
-    toast.add({ color: 'red', title: 'Copy failed', icon: 'i-lucide-x-circle' })
+    toast.add({ color: 'red', title: $t('profile.copyFailed'), icon: 'i-lucide-x-circle' })
   }
 }
 
@@ -56,18 +58,18 @@ const saveProfile = async () => {
   profile.company = draft.company
   profile.descript = draft.descript
   isEditOpen.value = false
-  toast.add({ color: 'green', title: 'Profile updated', icon: 'i-lucide-check-circle' })
+  toast.add({ color: 'green', title: $t('profile.profileUpdated'), icon: 'i-lucide-check-circle' })
 }
 </script>
 
 <template>
-  <div class="container mx-auto py-6">
+  <div>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
       <UCard class="md:col-span-1">
         <template #header>
           <div class="flex items-center justify-between">
-            <h2 class="font-semibold">My Profile</h2>
-            <UButton size="xs" color="gray" variant="soft" @click="openEdit">Edit</UButton>
+            <h2 class="font-semibold">{{ $t('profile.myProfile') }}</h2>
+            <UButton size="xs" color="gray" variant="soft" @click="openEdit">{{ $t('common.edit') }}</UButton>
           </div>
         </template>
         <div class="flex items-center gap-4">
@@ -79,11 +81,11 @@ const saveProfile = async () => {
             <div class="text-sm text-gray-500 truncate">{{ profile.email }}</div>
           </div>
         </div>
-        <div class="mt-4 space-y-2 text-sm">
-          <div><span class="text-gray-500">Company:</span> <span class="font-medium">{{ profile.company }}</span></div>
-          <div><span class="text-gray-500">About:</span> <span class="font-medium break-words">{{ profile.descript }}</span></div>
+          <div class="mt-4 space-y-2 text-sm">
+          <div><span class="text-gray-500">{{ $t('profile.company') }}:</span> <span class="font-medium">{{ profile.company }}</span></div>
+          <div><span class="text-gray-500">{{ $t('profile.about') }}:</span> <span class="font-medium break-words">{{ profile.descript }}</span></div>
           <div>
-            <span class="text-gray-500">Referral Code:</span>
+            <span class="text-gray-500">{{ $t('profile.referralCode') }}:</span>
             <UBadge color="primary" variant="soft" :label="profile.ref_code" />
           </div>
         </div>
@@ -92,15 +94,15 @@ const saveProfile = async () => {
       <UCard class="md:col-span-2">
         <template #header>
           <div class="flex items-center justify-between">
-            <h3 class="font-semibold">Referral</h3>
+            <h3 class="font-semibold">{{ $t('profile.referral') }}</h3>
             <div class="flex gap-2">
-              <UButton color="gray" variant="soft" @click="copyRef">Copy Link</UButton>
-              <UButton color="primary" @click="shareRef">Share</UButton>
+              <UButton color="gray" variant="soft" @click="copyRef">{{ $t('profile.copyLink') }}</UButton>
+              <UButton color="primary" @click="shareRef">{{ $t('profile.share') }}</UButton>
             </div>
           </div>
         </template>
          <div class="space-y-4">
-          <UFormGroup label="Referral Link">
+          <UFormGroup :label="$t('profile.referralLink')">
             <UInput :model-value="refLink" readonly />
           </UFormGroup>
            <!-- Company/About moved to My Profile card -->
@@ -111,20 +113,20 @@ const saveProfile = async () => {
   <UModal v-model="isEditOpen">
     <UCard>
       <template #header>
-        <h3 class="font-semibold">Edit My Profile</h3>
+        <h3 class="font-semibold">{{ $t('profile.editMyProfile') }}</h3>
       </template>
-      <UForm id="edit-profile-form" @submit.prevent="saveProfile">
-        <UFormGroup label="Company">
-          <UInput v-model="draft.company" />
+      <div class="space-y-4">
+        <UFormGroup :label="$t('profile.company')">
+          <UInput v-model="draft.company" @keyup.enter="saveProfile" />
         </UFormGroup>
-        <UFormGroup class="mt-2" label="About / Description">
+        <UFormGroup :label="$t('profile.aboutDescription')">
           <UTextarea v-model="draft.descript" rows="4" />
         </UFormGroup>
-      </UForm>
+      </div>
       <template #footer>
         <div class="flex justify-end gap-2 mt-2">
-          <UButton color="gray" variant="soft" @click="isEditOpen = false">Cancel</UButton>
-          <UButton form="edit-profile-form" type="submit" color="primary" :disabled="!draft.company">Save</UButton>
+          <UButton color="gray" variant="soft" @click="isEditOpen = false">{{ $t('common.cancel') }}</UButton>
+          <UButton color="primary" @click="saveProfile" :disabled="!draft.company">{{ $t('common.save') }}</UButton>
         </div>
       </template>
     </UCard>

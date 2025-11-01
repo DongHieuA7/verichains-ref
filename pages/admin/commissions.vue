@@ -1,10 +1,23 @@
 <script setup lang="ts">
+const { t } = useI18n()
+
 definePageMeta({ middleware: ['auth','admin'] })
 useSeoMeta({ title: 'Admin - Commissions' })
 
 const supabase = useSupabaseClient()
 const isLoading = ref(false)
 const rows = ref<any[]>([])
+
+// Format status display with capital first letter
+const formatStatus = (status: string) => {
+  const statusMap: Record<string, string> = {
+    'requested': t('commissions.requested'),
+    'approved': t('commissions.approved'),
+    'claimed': t('commissions.claimed'),
+  }
+  const statusText = statusMap[status] || status
+  return statusText.charAt(0).toUpperCase() + statusText.slice(1)
+}
 
 const fetchAll = async () => {
   const { data } = await supabase
@@ -21,13 +34,36 @@ const statuses = ['requested','approved','claimed']
 const save = async (row: any) => {
   await supabase
     .from('commissions')
-    .update({ status: row.status, value: row.value })
+    .update({ status: row.status, value: row.value, original_value: row.original_value })
     .eq('id', row.id)
 }
 
 const approve = async (row: any) => {
   if (row.status !== 'requested') return
+  
+  // Get ref_percentage from user_project_info for this user and project
+  const { data: refData, error: refError } = await supabase
+    .from('user_project_info')
+    .select('ref_percentage')
+    .eq('user_id', row.user_id)
+    .eq('project_id', row.project_id)
+    .single()
+  
+  if (refError) {
+    console.error('Error fetching ref_percentage:', refError)
+    // Use 0 if not found
+  }
+  
+  const refPercentage = refData?.ref_percentage || 0
+  
+  // Calculate new value: value * (ref_percentage / 100)
+  // Get original value (if exists, use it; otherwise use current value)
+  const currentOriginalValue = row.original_value != null ? Number(row.original_value || 0) : Number(row.value || 0)
+  const approvedValue = currentOriginalValue * (refPercentage / 100)
+  
   row.status = 'approved'
+  row.value = approvedValue
+  row.original_value = currentOriginalValue
   await save(row)
 }
 </script>
@@ -51,7 +87,7 @@ const approve = async (row: any) => {
           <UInput v-model.number="row.value" type="number" step="0.01" @blur="save(row)" />
         </template>
         <template #status-data="{ row }">
-          <UBadge :label="row.status" :color="row.status === 'claimed' ? 'blue' : row.status === 'approved' ? 'green' : 'yellow'" variant="soft" />
+          <UBadge :label="formatStatus(row.status || 'unknown')" :color="row.status === 'claimed' ? 'blue' : row.status === 'approved' ? 'green' : 'yellow'" variant="soft" />
         </template>
         <template #actions-data="{ row }">
           <UButton v-if="row.status === 'requested'" size="xs" color="gray" @click="approve(row)">Approve</UButton>

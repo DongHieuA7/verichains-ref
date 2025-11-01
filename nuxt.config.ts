@@ -28,9 +28,12 @@ export default defineNuxtConfig({
 	},
 	runtimeConfig: {
 		public: {
-			APP_URL: process.env.APP_URL,
+			APP_URL: process.env.APP_URL || process.env.NUXT_PUBLIC_APP_URL,
+			supabaseUrl: process.env.SUPABASE_URL || process.env.NUXT_PUBLIC_SUPABASE_URL,
+			supabaseAnonKey: process.env.SUPABASE_ANON_KEY || process.env.NUXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NUXT_PUBLIC_SUPABASE_KEY,
 		},
 		supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+		supabaseUrl: process.env.SUPABASE_URL || process.env.NUXT_PUBLIC_SUPABASE_URL,
 	},
 	modules: [
 		'@nuxt/ui',
@@ -39,7 +42,33 @@ export default defineNuxtConfig({
 		'@vueuse/nuxt',
 		'@nuxtjs/supabase',
 		'@nuxt/content',
+		'@nuxtjs/i18n',
 	],
+	i18n: {
+		locales: [
+			{
+				code: 'en',
+				iso: 'en-US',
+				name: 'English',
+				file: 'en.json',
+			},
+			{
+				code: 'vi',
+				iso: 'vi-VN',
+				name: 'Tiếng Việt',
+				file: 'vi.json',
+			},
+		],
+		lazy: true,
+		langDir: 'locales',
+		defaultLocale: 'en',
+		strategy: 'no_prefix',
+		detectBrowserLanguage: {
+			useCookie: true,
+			cookieKey: 'i18n_redirected',
+			redirectOn: 'root',
+		},
+	},
 	content: {
 		contentHead: true,
 	},

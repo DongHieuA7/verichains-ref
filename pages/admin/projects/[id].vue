@@ -1,35 +1,91 @@
 <script setup lang="ts">
+const { t } = useI18n()
+
 definePageMeta({ middleware: ['auth','admin'] })
-useSeoMeta({ title: 'Admin - Project Detail' })
+useSeoMeta({ title: t('admin.projectDetail') })
 
 const route = useRoute()
+const supabase = useSupabaseClient()
+const user = useSupabaseUser()
 const projectId = computed(() => route.params.id as string)
-// Mock current admin id (replace with auth user id later)
-const currentAdminId = ref<string>('u-1')
+const currentAdminId = computed(() => user.value?.id || '')
 
-// Mock project + users (align with admin/projects.vue mocks)
-const mockUsers = [
-  { id: 'u-1', email: 'alice@example.com', name: 'Alice', created_at: new Date(Date.now() - 86400000 * 30).toISOString() },
-  { id: 'u-2', email: 'bob@example.com', name: 'Bob', created_at: new Date(Date.now() - 86400000 * 25).toISOString() },
-  { id: 'u-3', email: 'carol@example.com', name: 'Carol', created_at: new Date(Date.now() - 86400000 * 10).toISOString() },
-  { id: 'u-4', email: 'dave@example.com', name: 'Dave', created_at: new Date(Date.now() - 86400000 * 5).toISOString() },
-]
+// Project data
+const project = ref<{ id: string, name: string, admins: string[] } | null>(null)
 
-const projects = [
-  { id: 'p-1', name: 'Project Alpha', admins: ['u-1'], users: ['u-1','u-2'] },
-  { id: 'p-2', name: 'Project Beta', admins: ['u-2','u-3'], users: ['u-2','u-3','u-4'] },
-  { id: 'p-3', name: 'Project Gamma', admins: [], users: [] },
-]
+// Check if current user is admin of this project
+const isProjectAdmin = computed(() => {
+  if (!project.value || !currentAdminId.value) return false
+  return (project.value.admins || []).includes(currentAdminId.value)
+})
 
-const project = computed(() => projects.find(p => p.id === projectId.value))
+// All users from user_profiles
+const allUsers = ref<any[]>([])
+// All admins from admins table
+const allAdmins = ref<any[]>([])
 
-type Commission = { id: string, user_id: string, project_id: string, description: string, date: string, status: 'requested'|'approved'|'claimed', value: number }
+type Commission = { id: string, user_id: string, project_id: string, description: string, date: string, status: 'requested'|'approved'|'claimed', value: number, original_value?: number | null, currency?: string }
+
+type JoinRequest = { 
+  id: string, 
+  user_id: string, 
+  project_id: string, 
+  message: string | null, 
+  ref_percentage: number | null,
+  status: 'pending'|'approved'|'rejected', 
+  created_at: string,
+  updated_at: string | null
+}
 
 const statuses = ['requested','approved','claimed']
-const rows = ref<Commission[]>([])
+const commissions = ref<Commission[]>([])
+const joinRequests = ref<JoinRequest[]>([])
 
 const usersInProject = ref<string[]>([])
 const adminsInProject = ref<string[]>([])
+const userRefInfo = ref<Record<string, { ref_percentage: number, joined_at: string }>>({})
+
+// Get pending requests
+const pendingRequests = computed(() => joinRequests.value.filter(r => r.status === 'pending'))
+
+// Combined users and pending requests for table display
+const usersTableData = computed(() => {
+  const result: Array<{
+    user_id: string,
+    status: 'joined' | 'pending',
+    join_request_id?: string,
+    message?: string | null,
+    ref_percentage: number,
+    joined_at?: string,
+    requested_at?: string
+  }> = []
+  
+  // Add joined users
+  for (const uid of usersInProject.value) {
+    result.push({
+      user_id: uid,
+      status: 'joined',
+      ref_percentage: userRefInfo.value[uid]?.ref_percentage || 0,
+      joined_at: userRefInfo.value[uid]?.joined_at || '',
+    })
+  }
+  
+  // Add pending requests
+  for (const request of pendingRequests.value) {
+    if (!usersInProject.value.includes(request.user_id)) {
+      result.push({
+        user_id: request.user_id,
+        status: 'pending',
+        join_request_id: request.id,
+        message: request.message,
+        ref_percentage: request.ref_percentage || 10,
+        requested_at: request.created_at,
+      })
+    }
+  }
+  
+  return result
+})
 
 // Month-Year filter
 const selectedYear = ref<number>(new Date().getFullYear())
@@ -51,15 +107,15 @@ const monthOptions = computed(() => {
   }
   return options
 })
-const filteredRows = computed(() => {
-  const byYear = rows.value.filter(r => (r.date || '').slice(0,4) === String(selectedYear.value))
+const filteredCommissions = computed(() => {
+  const byYear = commissions.value.filter(r => (r.date || '').slice(0,4) === String(selectedYear.value))
   if (!selectedMonth.value) return byYear
   return byYear.filter(r => (r.date || '').slice(0,7) === selectedMonth.value)
 })
 
 const commissionsByUser = computed<Record<string, Commission[]>>(() => {
   const map: Record<string, Commission[]> = {}
-  for (const c of filteredRows.value) {
+  for (const c of filteredCommissions.value) {
     if (!map[c.user_id]) map[c.user_id] = []
     map[c.user_id].push(c)
   }
@@ -73,24 +129,226 @@ const toggleExpand = (uid: string) => {
   expandedUsers.value = set
 }
 
-// User-project info (editable): ref percentage and joined date per project
-const userRefInfo = ref<Record<string, { ref_percentage: number, joined_at: string }>>({})
-const initUserRefInfo = () => {
+// Fetch project data
+const fetchProject = async () => {
+  const { data, error } = await supabase
+    .from('projects')
+    .select('id, name, admins')
+    .eq('id', projectId.value)
+    .single()
+  
+  if (error || !data) {
+    console.error('Error fetching project:', error)
+    return
+  }
+  
+  project.value = data
+  adminsInProject.value = data.admins || []
+}
+
+// Fetch users in project from user_project_info
+const fetchUsersInProject = async () => {
+  const { data, error } = await supabase
+    .from('user_project_info')
+    .select('user_id, ref_percentage, created_at')
+    .eq('project_id', projectId.value)
+  
+  if (error) {
+    console.error('Error fetching users in project:', error)
+    return
+  }
+  
+  usersInProject.value = (data || []).map((r: any) => r.user_id)
   const map: Record<string, { ref_percentage: number, joined_at: string }> = {}
-  for (const uid of usersInProject.value) {
-    map[uid] = {
-      ref_percentage: 5 + (uid.charCodeAt(uid.length - 1) % 15),
-      joined_at: mockUsers.find(u => u.id === uid)?.created_at || new Date().toISOString(),
+  for (const r of data || []) {
+    map[r.user_id] = {
+      ref_percentage: Number(r.ref_percentage),
+      joined_at: r.created_at,
     }
   }
   userRefInfo.value = map
 }
 
-// Edit commission modal
-const approveCommission = (c: Commission) => {
+// Fetch all users
+const fetchAllUsers = async () => {
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .select('id, email, name, created_at')
+    .order('created_at', { ascending: false })
+  
+  if (error) {
+    console.error('Error fetching users:', error)
+    return
+  }
+  
+  allUsers.value = data || []
+}
+
+// Fetch all admins
+const fetchAllAdmins = async () => {
+  const { data, error } = await supabase
+    .from('admins')
+    .select('id, email, name, created_at')
+    .order('created_at', { ascending: false })
+  
+  if (error) {
+    console.error('Error fetching admins:', error)
+    return
+  }
+  
+  allAdmins.value = data || []
+}
+
+// Fetch commissions
+const fetchCommissions = async () => {
+  const { data, error } = await supabase
+    .from('commissions')
+    .select('id, user_id, project_id, description, date, status, value, original_value, currency')
+    .eq('project_id', projectId.value)
+    .order('date', { ascending: false })
+  
+  if (error) {
+    console.error('Error fetching commissions:', error)
+    return
+  }
+  
+  commissions.value = (data || []).map((c: any) => ({
+    id: c.id,
+    user_id: c.user_id,
+    project_id: c.project_id,
+    description: c.description || '',
+    date: c.date,
+    status: c.status,
+    value: Number(c.value),
+    currency: c.currency || 'USD',
+  }))
+}
+
+// Fetch join requests
+const fetchJoinRequests = async () => {
+  const { data, error } = await supabase
+    .from('project_join_requests')
+    .select('id, user_id, project_id, message, ref_percentage, status, created_at, updated_at')
+    .eq('project_id', projectId.value)
+    .order('created_at', { ascending: false })
+  
+  if (error) {
+    console.error('Error fetching join requests:', error)
+    return
+  }
+  
+  joinRequests.value = (data || []) as JoinRequest[]
+}
+
+// Approve join request
+const approveJoinRequest = async (request: JoinRequest) => {
+  if (request.status !== 'pending') return
+  
+  if (!isProjectAdmin.value) {
+    const toast = useToast()
+    toast.add({
+      color: 'red',
+      title: t('admin.permissionDenied'),
+      description: t('admin.onlyProjectAdminsCanApproveRequests'),
+    })
+    return
+  }
+  
+  // Update request status
+  const { error: updateError } = await supabase
+    .from('project_join_requests')
+    .update({ status: 'approved' })
+    .eq('id', request.id)
+  
+  if (updateError) {
+    console.error('Error approving join request:', updateError)
+    return
+  }
+  
+  // Add user to project with ref_percentage
+  const refPercentage = request.ref_percentage || 10
+  const { error: addError } = await supabase
+    .from('user_project_info')
+    .upsert({ 
+      project_id: projectId.value, 
+      user_id: request.user_id, 
+      ref_percentage: refPercentage 
+    }, { onConflict: 'project_id,user_id' })
+  
+  if (addError) {
+    console.error('Error adding user to project:', addError)
+    return
+  }
+  
+  // Refresh data
+  await Promise.all([fetchJoinRequests(), fetchUsersInProject()])
+}
+
+// Reject join request
+const rejectJoinRequest = async (request: JoinRequest) => {
+  if (request.status !== 'pending') return
+  
+  if (!isProjectAdmin.value) {
+    const toast = useToast()
+    toast.add({
+      color: 'red',
+      title: t('admin.permissionDenied'),
+      description: t('admin.onlyProjectAdminsCanRejectRequests'),
+    })
+    return
+  }
+  
+  const { error } = await supabase
+    .from('project_join_requests')
+    .update({ status: 'rejected' })
+    .eq('id', request.id)
+  
+  if (error) {
+    console.error('Error rejecting join request:', error)
+    return
+  }
+  
+  await fetchJoinRequests()
+}
+
+// Approve commission
+const approveCommission = async (c: Commission) => {
   if (c.status !== 'requested') return
-  const idx = rows.value.findIndex(r => r.id === c.id)
-  if (idx !== -1) rows.value[idx] = { ...rows.value[idx], status: 'approved' }
+  
+  if (!isProjectAdmin.value) {
+    const toast = useToast()
+    toast.add({
+      color: 'red',
+      title: t('admin.permissionDenied'),
+      description: t('admin.onlyProjectAdminsCanApproveCommissions'),
+    })
+    return
+  }
+  
+  // Get ref_percentage from user_project_info
+  const refInfo = userRefInfo.value[c.user_id]
+  const refPercentage = refInfo?.ref_percentage || 0
+  
+  // Calculate new value: value * (ref_percentage / 100)
+  // Get original value (if exists, use it; otherwise use current value)
+  const currentOriginalValue = c.original_value != null ? Number(c.original_value || 0) : Number(c.value || 0)
+  const approvedValue = currentOriginalValue * (refPercentage / 100)
+  
+  const { error } = await supabase
+    .from('commissions')
+    .update({ 
+      status: 'approved',
+      value: approvedValue,
+      original_value: currentOriginalValue // Ensure original_value is stored
+    })
+    .eq('id', c.id)
+  
+  if (error) {
+    console.error('Error approving commission:', error)
+    return
+  }
+  
+  await fetchCommissions()
 }
 
 const formatDate = (input: string) => {
@@ -100,95 +358,239 @@ const formatDate = (input: string) => {
   return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
 }
 
+const formatValue = (value: number | string | null | undefined, currency: string = 'USD') => {
+  if (value == null || value === '' || value === undefined) return '—'
+  const numValue = typeof value === 'string' ? parseFloat(value) : value
+  if (isNaN(numValue)) return '—'
+  
+  const currencySymbol = currency === 'VND' ? '₫' : '$'
+  const locale = currency === 'VND' ? 'vi-VN' : 'en-US'
+  const formatted = numValue.toLocaleString(locale, { 
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0 
+  })
+  
+  return currency === 'VND' ? `${formatted} ${currencySymbol}` : `${currencySymbol}${formatted}`
+}
+
+// Format status display with capital first letter
+const formatStatus = (status: string) => {
+  const statusMap: Record<string, string> = {
+    'requested': t('commissions.requested'),
+    'approved': t('commissions.approved'),
+    'claimed': t('commissions.claimed'),
+  }
+  const statusText = statusMap[status] || status
+  return statusText.charAt(0).toUpperCase() + statusText.slice(1)
+}
+
+// Get original value for display
+const getOriginalValueDisplay = (commission: Commission) => {
+  return commission.original_value != null ? commission.original_value : commission.value
+}
+
+// Calculate commission received for display
+const getCommissionReceivedDisplay = (commission: Commission) => {
+  if (commission.status === 'approved' || commission.status === 'claimed') {
+    return commission.value
+  }
+  // For requested status, calculate based on ref_percentage
+  const refInfo = userRefInfo.value[commission.user_id]
+  const refPercentage = refInfo?.ref_percentage || 0
+  const originalValue = commission.original_value != null ? commission.original_value : commission.value
+  return originalValue * (refPercentage / 100)
+}
+
 // Available options excluding existing members
 const availableUserOptions = computed(() => {
   const set = new Set(usersInProject.value)
-  return mockUsers
+  return allUsers.value
     .filter(u => !set.has(u.id))
     .map(u => ({ label: u.name || u.email, value: u.id }))
 })
 const availableAdminOptions = computed(() => {
   const set = new Set(adminsInProject.value)
-  return mockUsers
-    .filter(u => !set.has(u.id))
-    .map(u => ({ label: u.name || u.email, value: u.id }))
+  return allAdmins.value
+    .filter(a => !set.has(a.id))
+    .map(a => ({ label: a.name || a.email, value: a.id }))
 })
 
-const removeUser = (uid: string) => {
+const removeUser = async (uid: string) => {
+  if (!isProjectAdmin.value) {
+    const toast = useToast()
+    toast.add({
+      color: 'red',
+      title: t('admin.permissionDenied'),
+      description: t('admin.onlyProjectAdminsCanRemoveUsers'),
+    })
+    return
+  }
+  
+  const { error } = await supabase
+    .from('user_project_info')
+    .delete()
+    .eq('project_id', projectId.value)
+    .eq('user_id', uid)
+  
+  if (error) {
+    console.error('Error removing user:', error)
+    return
+  }
+  
   usersInProject.value = usersInProject.value.filter(id => id !== uid)
   const set = new Set(expandedUsers.value)
   if (set.has(uid)) { set.delete(uid); expandedUsers.value = set }
   delete userRefInfo.value[uid]
 }
-const removeAdmin = (uid: string) => {
+
+const removeAdmin = async (uid: string) => {
   if (uid === currentAdminId.value) return
-  adminsInProject.value = adminsInProject.value.filter(id => id !== uid)
+  if (!project.value) return
+  
+  if (!isProjectAdmin.value) {
+    const toast = useToast()
+    toast.add({
+      color: 'red',
+      title: t('admin.permissionDenied'),
+      description: t('admin.onlyProjectAdminsCanRemoveAdmins'),
+    })
+    return
+  }
+  
+  const next = (project.value.admins || []).filter(id => id !== uid)
+  const { error } = await supabase
+    .from('projects')
+    .update({ admins: next })
+    .eq('id', projectId.value)
+  
+  if (error) {
+    console.error('Error removing admin:', error)
+    return
+  }
+  
+  project.value.admins = next
+  adminsInProject.value = next
 }
 
 const userLabel = (uid: string) => {
-  const u = mockUsers.find(x => x.id === uid)
+  const u = allUsers.value.find(x => x.id === uid)
   return u ? (u.name || u.email) : uid
 }
 
-const initMock = () => {
-  const users = usersInProject.value
-  const items: Commission[] = []
-  let i = 1
-  for (const uid of users) {
-    items.push({ id: `c-${projectId.value}-${i++}`, user_id: uid, project_id: projectId.value, description: 'Requested commission', date: new Date().toISOString(), status: 'requested', value: 1200 })
-    items.push({ id: `c-${projectId.value}-${i++}`, user_id: uid, project_id: projectId.value, description: 'Approved commission', date: new Date(Date.now() - 86400000).toISOString(), status: 'approved', value: 800 })
-    items.push({ id: `c-${projectId.value}-${i++}`, user_id: uid, project_id: projectId.value, description: 'Claimed commission', date: new Date(Date.now() - 172800000).toISOString(), status: 'claimed', value: 500 })
-  }
-  rows.value = items
+const adminLabel = (uid: string) => {
+  const a = allAdmins.value.find(x => x.id === uid)
+  return a ? (a.name || a.email) : uid
 }
 
-onMounted(() => {
-  initMock()
-  usersInProject.value = [...(project.value?.users || [])]
-  adminsInProject.value = [...(project.value?.admins || [])]
-  initUserRefInfo()
+onMounted(async () => {
+  await Promise.all([
+    fetchProject(),
+    fetchAllUsers(),
+    fetchAllAdmins(),
+    fetchUsersInProject(),
+    fetchCommissions(),
+    fetchJoinRequests(),
+  ])
+  
+  // Set default to current month/year
   const now = new Date()
   selectedYear.value = now.getFullYear()
-  selectedMonth.value = `${selectedYear.value}-${String(now.getMonth() + 1).padStart(2,'0')}`
+  selectedMonth.value = `${selectedYear.value}-${String(now.getMonth() + 1).padStart(2, '0')}`
 })
-
-const save = async (row: Commission) => {
-  if (row.status === 'claimed') return
-  const idx = rows.value.findIndex(r => r.id === row.id)
-  if (idx !== -1) rows.value[idx] = { ...row }
-}
 
 // Edit Ref % modal
 const isEditRefOpen = ref(false)
 const isAddUserOpen = ref(false)
 const isAddAdminOpen = ref(false)
+const isEditRequestOpen = ref(false)
 const manageState = reactive<{ addUser?: string, addAdmin?: string }>({})
 const editRef = reactive<{ uid: string, value: number | null }>({ uid: '', value: null })
+const editRequest = reactive<{ id: string, ref_percentage: number | null }>({ id: '', ref_percentage: null })
+const openEditRequest = (request: JoinRequest) => {
+  editRequest.id = request.id
+  editRequest.ref_percentage = request.ref_percentage || 10
+  isEditRequestOpen.value = true
+}
+const saveEditRequest = async () => {
+  if (!editRequest.id) return
+  
+  if (!isProjectAdmin.value) {
+    const toast = useToast()
+    toast.add({
+      color: 'red',
+      title: t('admin.permissionDenied'),
+      description: t('admin.onlyProjectAdminsCanEditRequests'),
+    })
+    isEditRequestOpen.value = false
+    return
+  }
+  
+  const { error } = await supabase
+    .from('project_join_requests')
+    .update({ ref_percentage: editRequest.ref_percentage })
+    .eq('id', editRequest.id)
+  
+  if (error) {
+    console.error('Error updating request:', error)
+    return
+  }
+  
+  await fetchJoinRequests()
+  isEditRequestOpen.value = false
+}
 const openEditRef = (uid: string) => {
   editRef.uid = uid
   editRef.value = userRefInfo.value[uid]?.ref_percentage ?? null
   isEditRefOpen.value = true
 }
-const saveEditRef = () => {
+const saveEditRef = async () => {
   if (!editRef.uid || editRef.value == null) { isEditRefOpen.value = false; return }
+  
+  if (!isProjectAdmin.value) {
+    const toast = useToast()
+    toast.add({
+      color: 'red',
+      title: t('admin.permissionDenied'),
+      description: t('admin.onlyProjectAdminsCanEditReferral'),
+    })
+    isEditRefOpen.value = false
+    return
+  }
+  
   const v = Math.max(0, Math.min(100, Number(editRef.value)))
-  if (!userRefInfo.value[editRef.uid]) userRefInfo.value[editRef.uid] = { ref_percentage: v, joined_at: new Date().toISOString() }
+  
+  const { error } = await supabase
+    .from('user_project_info')
+    .upsert({ 
+      project_id: projectId.value, 
+      user_id: editRef.uid, 
+      ref_percentage: v 
+    }, { onConflict: 'project_id,user_id' })
+  
+  if (error) {
+    console.error('Error saving ref percentage:', error)
+    return
+  }
+  
+  if (!userRefInfo.value[editRef.uid]) {
+    userRefInfo.value[editRef.uid] = { ref_percentage: v, joined_at: new Date().toISOString() }
+  }
   userRefInfo.value[editRef.uid].ref_percentage = v
   isEditRefOpen.value = false
 }
 </script>
 
 <template>
-  <div class="container mx-auto py-6">
+  <div class="container mx-auto">
     <UCard>
       <template #header>
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-3">
-            <NuxtLink class="text-sm text-gray-500 hover:underline" to="/admin/projects">← Back</NuxtLink>
-            <h2 class="font-semibold">Project Detail - {{ project?.name || projectId }}</h2>
+            <NuxtLink class="text-sm text-gray-500 hover:underline" to="/admin/projects">← {{ $t('common.back') }}</NuxtLink>
+            <h2 class="font-semibold">{{ $t('admin.projectDetailTitle', { name: project?.name || projectId }) }}</h2>
           </div>
           <div class="flex items-center gap-3">
-            <span class="text-sm text-gray-500">Filter</span>
+            <span class="text-sm text-gray-500">{{ $t('common.filter') }}</span>
             <USelect v-model="selectedYear" :options="yearOptions" />
             <USelect v-model="selectedMonth" :options="monthOptions" />
           </div>
@@ -200,27 +602,44 @@ const saveEditRef = () => {
           <UCard>
             <template #header>
               <div class="flex items-center justify-between">
-                <h3 class="font-medium">Admins</h3>
-                <UButton size="xs" color="primary" @click="isAddAdminOpen = true">Add Admin</UButton>
+                <h3 class="font-medium">{{ $t('common.admins') }}</h3>
+                <UButton 
+                  size="xs" 
+                  color="primary" 
+                  @click="isAddAdminOpen = true"
+                  :disabled="!isProjectAdmin"
+                  :title="!isProjectAdmin ? $t('admin.onlyProjectAdminsCanAddAdmins') : ''"
+                >
+                  {{ $t('projects.addAdmin') }}
+                </UButton>
               </div>
             </template>
             <UTable :rows="adminsInProject.map(uid => ({ uid }))" :columns="[
-              { key: 'name', label: 'Name' },
-              { key: 'email', label: 'Email' },
-              { key: 'joined', label: 'Joined' },
-              { key: 'actions', label: 'Actions' },
+              { key: 'name', label: $t('common.name') },
+              { key: 'email', label: $t('common.email') },
+              { key: 'joined', label: $t('common.joined') },
+              { key: 'actions', label: $t('common.actions') },
             ]">
               <template #name-data="{ row }">
-                <span>{{ mockUsers.find(u => u.id === row.uid)?.name || row.uid }}</span>
+                <span>{{ adminLabel(row.uid) }}</span>
               </template>
               <template #email-data="{ row }">
-                <span>{{ mockUsers.find(u => u.id === row.uid)?.email || '-' }}</span>
+                <span>{{ allAdmins.find(a => a.id === row.uid)?.email || '-' }}</span>
               </template>
               <template #joined-data="{ row }">
-                <span>{{ formatDate(mockUsers.find(u => u.id === row.uid)?.created_at || '') }}</span>
+                <span>{{ formatDate(allAdmins.find(a => a.id === row.uid)?.created_at || '') }}</span>
               </template>
               <template #actions-data="{ row }">
-                <UButton size="xs" color="red" variant="soft" :disabled="row.uid === currentAdminId" @click="removeAdmin(row.uid)">Remove</UButton>
+                <UButton 
+                  size="xs" 
+                  color="red" 
+                  variant="soft" 
+                  :disabled="row.uid === currentAdminId || !isProjectAdmin"
+                  :title="!isProjectAdmin ? $t('admin.onlyProjectAdminsCanRemoveAdmins') : ''"
+                  @click="removeAdmin(row.uid)"
+                >
+                  {{ $t('common.remove') }}
+                </UButton>
               </template>
             </UTable>
           </UCard>
@@ -230,8 +649,16 @@ const saveEditRef = () => {
           <UCard>
             <template #header>
               <div class="flex items-center justify-between">
-                <h3 class="font-medium">Users</h3>
-                <UButton size="xs" color="primary" @click="isAddUserOpen = true">Add User</UButton>
+                <h3 class="font-medium">{{ $t('common.users') }}</h3>
+                <UButton 
+                  size="xs" 
+                  color="primary" 
+                  @click="isAddUserOpen = true"
+                  :disabled="!isProjectAdmin"
+                  :title="!isProjectAdmin ? $t('admin.onlyProjectAdminsCanAddUsers') : ''"
+                >
+                  {{ $t('projects.addUser') }}
+                </UButton>
               </div>
             </template>
             <div class="overflow-x-auto">
@@ -239,48 +666,143 @@ const saveEditRef = () => {
                 <thead>
                   <tr class="text-left text-gray-500">
                     <th class="w-10"></th>
-                    <th class="py-2">Name</th>
-                    <th class="py-2">Email</th>
-                    <th class="py-2">Joined</th>
-                    <th class="py-2">Ref %</th>
-                    <th class="py-2">Actions</th>
+                    <th class="py-2">{{ $t('common.name') }}</th>
+                    <th class="py-2">{{ $t('common.email') }}</th>
+                    <th class="py-2">{{ $t('common.status') }}</th>
+                    <th class="py-2">{{ $t('projects.joinedRequested') }}</th>
+                    <th class="py-2">{{ $t('projects.refPercentage') }}</th>
+                    <th class="py-2">{{ $t('common.actions') }}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <template v-for="uid in usersInProject" :key="uid">
+                  <template v-for="row in usersTableData" :key="`${row.user_id}-${row.status}`">
                     <tr class="border-t">
                       <td class="py-2">
-                        <UButton size="xs" color="gray" variant="soft" @click="toggleExpand(uid)">
-                          <UIcon :name="expandedUsers.has(uid) ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'" />
+                        <UButton 
+                          v-if="row.status === 'joined'" 
+                          size="xs" 
+                          color="gray" 
+                          variant="soft" 
+                          @click="toggleExpand(row.user_id)"
+                        >
+                          <UIcon :name="expandedUsers.has(row.user_id) ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'" />
                         </UButton>
                       </td>
-                      <td class="py-2 font-medium">{{ mockUsers.find(u => u.id === uid)?.name || uid }}</td>
-                      <td class="py-2">{{ mockUsers.find(u => u.id === uid)?.email || '-' }}</td>
-                      <td class="py-2">{{ formatDate(userRefInfo[uid]?.joined_at || '') }}</td>
-                      <td class="py-2">{{ userRefInfo[uid]?.ref_percentage }}%</td>
+                      <td class="py-2 font-medium">
+                        <NuxtLink 
+                          class="text-primary hover:underline" 
+                          :to="`/admin/users/${row.user_id}`"
+                        >
+                          {{ userLabel(row.user_id) }}
+                        </NuxtLink>
+                      </td>
+                      <td class="py-2">
+                        <NuxtLink 
+                          class="text-primary hover:underline" 
+                          :to="`/admin/users/${row.user_id}`"
+                        >
+                          {{ allUsers.find(u => u.id === row.user_id)?.email || '-' }}
+                        </NuxtLink>
+                      </td>
+                      <td class="py-2">
+                        <UBadge 
+                          :label="row.status === 'joined' ? $t('projects.joined') : $t('projects.pending')" 
+                          :color="row.status === 'joined' ? 'green' : 'yellow'" 
+                          variant="soft" 
+                        />
+                      </td>
+                      <td class="py-2">{{ formatDate(row.status === 'joined' ? (row.joined_at || '') : (row.requested_at || '')) }}</td>
+                      <td class="py-2">{{ row.ref_percentage }}%</td>
                       <td class="py-2 flex items-center gap-2">
-                        <UButton size="xs" color="gray" @click="openEditRef(uid)">Edit Ref</UButton>
-                        <UButton size="xs" color="red" variant="soft" @click="removeUser(uid)">Remove</UButton>
+                        <template v-if="row.status === 'joined'">
+                          <UButton 
+                            size="xs" 
+                            color="gray" 
+                            @click="openEditRef(row.user_id)"
+                            :disabled="!isProjectAdmin"
+                            :title="!isProjectAdmin ? $t('admin.onlyProjectAdminsCanEditReferral') : ''"
+                          >
+                            {{ $t('projects.editRef') }}
+                          </UButton>
+                          <UButton 
+                            size="xs" 
+                            color="red" 
+                            variant="soft" 
+                            @click="removeUser(row.user_id)"
+                            :disabled="!isProjectAdmin"
+                            :title="!isProjectAdmin ? $t('admin.onlyProjectAdminsCanRemoveUsers') : ''"
+                          >
+                            {{ $t('common.remove') }}
+                          </UButton>
+                        </template>
+                        <template v-else>
+                          <UButton 
+                            size="xs" 
+                            color="gray" 
+                            variant="soft" 
+                            @click="openEditRequest(joinRequests.find(r => r.id === row.join_request_id)!)"
+                            :disabled="!isProjectAdmin"
+                            :title="!isProjectAdmin ? $t('admin.onlyProjectAdminsCanEditRequests') : ''"
+                          >
+                            {{ $t('common.edit') }}
+                          </UButton>
+                          <UButton 
+                            size="xs" 
+                            color="green" 
+                            variant="soft" 
+                            @click="approveJoinRequest(joinRequests.find(r => r.id === row.join_request_id)!)"
+                            :disabled="!isProjectAdmin"
+                            :title="!isProjectAdmin ? $t('admin.onlyProjectAdminsCanApproveRequests') : ''"
+                          >
+                            {{ $t('projects.approve') }}
+                          </UButton>
+                          <UButton 
+                            size="xs" 
+                            color="red" 
+                            variant="soft" 
+                            @click="rejectJoinRequest(joinRequests.find(r => r.id === row.join_request_id)!)"
+                            :disabled="!isProjectAdmin"
+                            :title="!isProjectAdmin ? $t('admin.onlyProjectAdminsCanRejectRequests') : ''"
+                          >
+                            {{ $t('projects.reject') }}
+                          </UButton>
+                        </template>
                       </td>
                     </tr>
-                    <tr v-show="expandedUsers.has(uid)" class="bg-gray-50/40">
+                    <tr v-show="row.status === 'joined' && expandedUsers.has(row.user_id)" class="bg-gray-50/40">
                       <td></td>
-                      <td class="py-2" :colspan="5">
-                        <UTable :rows="commissionsByUser[uid] || []" :columns="[
-                          { key: 'date', label: 'Date' },
-                          { key: 'description', label: 'Description' },
-                          { key: 'value', label: 'Value' },
-                          { key: 'status', label: 'Status' },
-                          { key: 'actions', label: 'Actions' },
+                      <td class="py-2" :colspan="6">
+                        <UTable :rows="commissionsByUser[row.user_id] || []" :columns="[
+                          { key: 'date', label: $t('common.date') },
+                          { key: 'description', label: $t('common.description') },
+                          { key: 'value', label: $t('common.value') },
+                          { key: 'commission_received', label: $t('commissions.commissionReceived') },
+                          { key: 'status', label: $t('common.status') },
+                          { key: 'actions', label: $t('common.actions') },
                         ]">
                           <template #date-data="{ row }">
                             <span>{{ formatDate(row.date) }}</span>
                           </template>
+                          <template #value-data="{ row }">
+                            <span>{{ formatValue(getOriginalValueDisplay(row), row.currency) }}</span>
+                          </template>
+                          <template #commission_received-data="{ row }">
+                            <span>{{ formatValue(getCommissionReceivedDisplay(row), row.currency) }}</span>
+                          </template>
                           <template #status-data="{ row }">
-                            <UBadge :label="row.status" :color="row.status === 'claimed' ? 'blue' : row.status === 'approved' ? 'green' : 'yellow'" variant="soft" />
+                            <UBadge :label="formatStatus(row.status || 'unknown')" :color="row.status === 'claimed' ? 'blue' : row.status === 'approved' ? 'green' : 'yellow'" variant="soft" />
                           </template>
                           <template #actions-data="{ row }">
-                            <UButton v-if="row.status === 'requested'" size="xs" color="gray" @click="approveCommission(row)">Approve</UButton>
+                            <UButton 
+                              v-if="row.status === 'requested'" 
+                              size="xs" 
+                              color="gray" 
+                              @click="approveCommission(row)"
+                              :disabled="!isProjectAdmin"
+                              :title="!isProjectAdmin ? $t('admin.onlyProjectAdminsCanApproveCommissions') : ''"
+                            >
+                              {{ $t('projects.approve') }}
+                            </UButton>
                             <span v-else class="text-xs text-gray-400">—</span>
                           </template>
                         </UTable>
@@ -290,7 +812,7 @@ const saveEditRef = () => {
                 </tbody>
               </table>
             </div>
-            <div v-if="!usersInProject.length" class="text-xs text-gray-500 py-2">No users</div>
+            <div v-if="usersTableData.length === 0" class="text-xs text-gray-500 py-2">{{ $t('projects.noUsersOrPending') }}</div>
           </UCard>
         </div>
       </div>
@@ -298,15 +820,62 @@ const saveEditRef = () => {
       <UModal v-model="isAddUserOpen">
         <UCard>
           <template #header>
-            <h3 class="font-semibold">Add User</h3>
+            <h3 class="font-semibold">{{ $t('projects.addUserToProject') }}</h3>
           </template>
-          <div class="flex items-center gap-2">
-            <USelect v-model="(manageState as any).addUser" :options="availableUserOptions" placeholder="Select user" />
-            <UButton size="xs" color="gray" @click="() => { if (manageState.addUser && !usersInProject.includes(manageState.addUser)) { usersInProject.push(manageState.addUser); if (!userRefInfo[manageState.addUser]) userRefInfo[manageState.addUser] = { ref_percentage: 5, joined_at: new Date().toISOString() }; manageState.addUser = undefined } }">Add</UButton>
+          <div class="space-y-4">
+            <UFormGroup :label="$t('projects.selectUser')">
+              <USelect 
+                v-model="(manageState as any).addUser" 
+                :options="availableUserOptions" 
+                :placeholder="$t('projects.selectUser')" 
+              />
+            </UFormGroup>
           </div>
           <template #footer>
             <div class="flex justify-end gap-2">
-              <UButton color="gray" variant="soft" @click="isAddUserOpen = false">Close</UButton>
+              <UButton color="gray" variant="soft" @click="isAddUserOpen = false">{{ $t('common.cancel') }}</UButton>
+              <UButton 
+                color="primary" 
+                @click="async () => { 
+                  if (!manageState.addUser || usersInProject.includes(manageState.addUser)) return
+                  if (!isProjectAdmin.value) {
+                    const toast = useToast()
+                    toast.add({
+                      color: 'red',
+                      title: t('admin.permissionDenied'),
+                      description: t('admin.onlyProjectAdminsCanAddUsers'),
+                    })
+                    return
+                  }
+                  
+                  const { error } = await supabase
+                    .from('user_project_info')
+                    .upsert({ 
+                      project_id: projectId.value, 
+                      user_id: manageState.addUser, 
+                      ref_percentage: 10 
+                    }, { onConflict: 'project_id,user_id' })
+                  
+                  if (error) {
+                    console.error('Error adding user:', error)
+                    const toast = useToast()
+                    toast.add({
+                      color: 'red',
+                      title: t('messages.failedToAddUser'),
+                      description: error.message,
+                    })
+                    return
+                  }
+                  
+                  await fetchUsersInProject()
+                  manageState.addUser = undefined
+                  isAddUserOpen.value = false
+                }"
+                :disabled="!manageState.addUser || usersInProject.includes(manageState.addUser || '') || !isProjectAdmin"
+                :title="!isProjectAdmin ? $t('admin.onlyProjectAdminsCanAddUsers') : ''"
+              >
+                {{ $t('common.add') }}
+              </UButton>
             </div>
           </template>
         </UCard>
@@ -315,15 +884,28 @@ const saveEditRef = () => {
       <UModal v-model="isAddAdminOpen">
         <UCard>
           <template #header>
-            <h3 class="font-semibold">Add Admin</h3>
+            <h3 class="font-semibold">{{ $t('projects.addAdminToProject') }}</h3>
           </template>
-          <div class="flex items-center gap-2">
-            <USelect v-model="(manageState as any).addAdmin" :options="availableAdminOptions" placeholder="Select admin" />
-            <UButton size="xs" color="gray" @click="() => { if (manageState.addAdmin && !adminsInProject.includes(manageState.addAdmin)) { adminsInProject.push(manageState.addAdmin); manageState.addAdmin = undefined } }">Add</UButton>
+          <div class="space-y-4">
+            <UFormGroup :label="$t('projects.selectAdmin')">
+              <USelect 
+                v-model="(manageState as any).addAdmin" 
+                :options="availableAdminOptions" 
+                :placeholder="$t('projects.selectAdmin')" 
+              />
+            </UFormGroup>
           </div>
           <template #footer>
             <div class="flex justify-end gap-2">
-              <UButton color="gray" variant="soft" @click="isAddAdminOpen = false">Close</UButton>
+              <UButton color="gray" variant="soft" @click="isAddAdminOpen = false">{{ $t('common.cancel') }}</UButton>
+              <UButton 
+                color="primary" 
+                @click="async () => { if (manageState.addAdmin && !adminsInProject.includes(manageState.addAdmin) && project) { const next = Array.from(new Set([...(project.admins || []), manageState.addAdmin])); const { error } = await supabase.from('projects').update({ admins: next }).eq('id', projectId); if (!error) { project.admins = next; adminsInProject.value = next; manageState.addAdmin = undefined; isAddAdminOpen = false } } }"
+                :disabled="!manageState.addAdmin || adminsInProject.includes(manageState.addAdmin || '') || !project || !isProjectAdmin"
+                :title="!isProjectAdmin ? $t('admin.onlyProjectAdminsCanAddAdmins') : ''"
+              >
+                {{ $t('common.add') }}
+              </UButton>
             </div>
           </template>
         </UCard>
@@ -333,17 +915,36 @@ const saveEditRef = () => {
       <UModal v-model="isEditRefOpen">
         <UCard>
           <template #header>
-            <h3 class="font-semibold">Edit Referral Percentage</h3>
+            <h3 class="font-semibold">{{ $t('projects.editReferralPercentage') }}</h3>
           </template>
           <div class="space-y-4">
-            <UFormGroup label="Ref %">
+            <UFormGroup :label="$t('projects.refPercentage')">
               <UInput v-model.number="(editRef as any).value" type="number" min="0" max="100" step="0.1" />
             </UFormGroup>
           </div>
           <template #footer>
             <div class="flex justify-end gap-2">
-              <UButton color="gray" variant="soft" @click="isEditRefOpen = false">Cancel</UButton>
-              <UButton color="primary" :disabled="editRef.value == null" @click="saveEditRef">Save</UButton>
+              <UButton color="gray" variant="soft" @click="isEditRefOpen = false">{{ $t('common.cancel') }}</UButton>
+              <UButton color="primary" :disabled="editRef.value == null" @click="saveEditRef">{{ $t('common.save') }}</UButton>
+            </div>
+          </template>
+        </UCard>
+      </UModal>
+
+      <UModal v-model="isEditRequestOpen">
+        <UCard>
+          <template #header>
+            <h3 class="font-semibold">{{ $t('projects.editJoinRequest') }}</h3>
+          </template>
+          <div class="space-y-4">
+            <UFormGroup :label="$t('projects.refPercentage')">
+              <UInput v-model.number="(editRequest as any).ref_percentage" type="number" min="0" max="100" step="0.1" />
+            </UFormGroup>
+          </div>
+          <template #footer>
+            <div class="flex justify-end gap-2">
+              <UButton color="gray" variant="soft" @click="isEditRequestOpen = false">{{ $t('common.cancel') }}</UButton>
+              <UButton color="primary" :disabled="editRequest.ref_percentage == null" @click="saveEditRequest">{{ $t('common.save') }}</UButton>
             </div>
           </template>
         </UCard>
