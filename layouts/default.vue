@@ -100,7 +100,7 @@ const signOut = async () => {
           </UCard>
         </aside>
 
-        <main :class="col-span-12 md:col-span-9 lg:col-span-9">
+        <main class="col-span-12 md:col-span-9 lg:col-span-9">
           <slot></slot>
         </main>
       </div>
