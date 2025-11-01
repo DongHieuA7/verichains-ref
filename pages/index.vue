@@ -53,8 +53,8 @@
   }
 </script>
 <template>
-  <div class="min-h-[50vh] flex items-center justify-center">
-    <div class="text-center space-y-6 max-w-md">
+  <div class="w-full">
+    <div class="text-center space-y-6 max-w-md mx-auto">
       <div>
         <div class="flex items-center justify-center gap-3 mb-4">
           <img src="/favicon.png" alt="Logo" class="w-12 h-12" />
