@@ -110,7 +110,13 @@
     "pleaseTryAgain": "Vui lòng thử lại",
     "userDetail": "Chi tiết người dùng",
     "userProfile": "Hồ sơ người dùng",
-    "userCommissions": "Hoa hồng người dùng"
+    "userCommissions": "Hoa hồng người dùng",
+    "deleteUser": "Xóa người dùng",
+    "deleteUserConfirm": "Bạn có chắc chắn muốn xóa người dùng này không?",
+    "deleteUserWarning": "Hành động này không thể hoàn tác. Tất cả dữ liệu liên quan của người dùng sẽ bị xóa.",
+    "userDeleted": "Đã xóa người dùng",
+    "userDeletedSuccessfully": "Người dùng đã được xóa thành công",
+    "failedToDeleteUser": "Không thể xóa người dùng"
   },
   "admin": {
     "projectDetail": "Chi tiết dự án",
