@@ -43,29 +43,29 @@
 </script>
 
 <template>
-  <div>
-    <div class="container mx-auto">
-      <div class="flex h-[100vh] w-full justify-center items-center">
-        <div class="w-10/12 md:w-8/12 lg:w-4/12 xl:w-3/12">
-          <UCard>
-            <div class="space-y-4">
-              <div class="flex justify-center">
-                <img src="/favicon.png" class="h-[80px]">
-              </div>
-              <p class="text-lg font-bold text-center">{{ $t('signIn.signInWithGoogle') }}</p>
-              <UButton 
-                :loading="isLoading"
-                :disabled="isLoading"
-                color="red" :label="$t('signIn.continueWithGoogle')" 
-                icon="i-lucide-mail" block
-                @click="signInWithGoogle" />
-            </div>
-          </UCard>
-
-          
+  <div class="w-full max-w-md mx-auto">
+    <div class="text-center space-y-6 mb-6">
+      <div>
+        <div class="flex items-center justify-center gap-3 mb-4">
+          <img src="/favicon.png" alt="Logo" class="w-12 h-12" />
+          <h1 class="text-3xl font-bold">{{ $t('home.title') }}</h1>
         </div>
+        <p class="text-gray-600">{{ $t('home.subtitle') }}</p>
       </div>
     </div>
+    <UCard>
+      <div class="space-y-4 p-4">
+        <p class="text-lg font-bold text-center">{{ $t('signIn.signInWithGoogle') }}</p>
+        <UButton 
+          :loading="isLoading"
+          :disabled="isLoading"
+          color="red" 
+          :label="$t('signIn.continueWithGoogle')" 
+          icon="i-lucide-mail" 
+          block
+          @click="signInWithGoogle" />
+      </div>
+    </UCard>
   </div>
 </template>
 
