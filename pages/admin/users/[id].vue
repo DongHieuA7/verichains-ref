@@ -119,26 +119,17 @@ const getProjectName = (projectId: string) => {
 }
 
 // Format functions
-const formatDate = (input: string) => {
-  const d = new Date(input)
-  if (isNaN(d.getTime())) return input
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
-}
+const { formatDate, formatValue, statusColor: getStatusColor } = useCommissionFormatters()
 
-const formatValue = (value: number | string | null | undefined, currency: string = 'USD') => {
-  if (value == null || value === '' || value === undefined) return '—'
-  const numValue = typeof value === 'string' ? parseFloat(value) : value
-  if (isNaN(numValue)) return '—'
-  
-  const currencySymbol = currency === 'VND' ? '₫' : '$'
-  const locale = currency === 'VND' ? 'vi-VN' : 'en-US'
-  const formatted = numValue.toLocaleString(locale, { 
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0 
-  })
-  
-  return currency === 'VND' ? `${formatted} ${currencySymbol}` : `${currencySymbol}${formatted}`
+// Custom formatStatus for this page (uses old status names)
+const formatStatus = (status: string) => {
+  const statusMap: Record<string, string> = {
+    'requested': t('commissions.requested'),
+    'approved': t('commissions.approved'),
+    'claimed': t('commissions.claimed'),
+  }
+  const statusText = statusMap[status] || status
+  return statusText.charAt(0).toUpperCase() + statusText.slice(1)
 }
 
 const statusColor = (status: string) => {
@@ -152,17 +143,6 @@ const statusColor = (status: string) => {
     default:
       return 'gray'
   }
-}
-
-// Format status display with capital first letter
-const formatStatus = (status: string) => {
-  const statusMap: Record<string, string> = {
-    'requested': t('commissions.requested'),
-    'approved': t('commissions.approved'),
-    'claimed': t('commissions.claimed'),
-  }
-  const statusText = statusMap[status] || status
-  return statusText.charAt(0).toUpperCase() + statusText.slice(1)
 }
 
 // Get original value for display
@@ -183,27 +163,7 @@ const getCommissionReceivedDisplay = (commission: any) => {
 }
 
 // Year and month filters
-const yearOptions = computed(() => {
-  const current = new Date().getFullYear()
-  const years: { label: string, value: number }[] = []
-  for (let y = current; y >= current - 4; y--) {
-    years.push({ label: String(y), value: y })
-  }
-  return years
-})
-
-const monthOptions = computed(() => {
-  const { t } = useI18n()
-  const options: { label: string, value: string }[] = [
-    { label: t('commissions.allMonths'), value: '' }
-  ]
-  for (let m = 1; m <= 12; m++) {
-    const value = `${selectedYear.value}-${String(m).padStart(2,'0')}`
-    const label = new Date(`${selectedYear.value}-${String(m).padStart(2,'0')}-01`).toLocaleString(undefined, { month: 'long'})
-    options.push({ label, value })
-  }
-  return options
-})
+const { yearOptions, monthOptions } = useDateFilters(selectedYear, selectedMonth)
 
 const filteredCommissions = computed(() => {
   const byYear = userCommissions.value.filter(c => (c.date || '').slice(0,4) === String(selectedYear.value))

@@ -88,54 +88,7 @@ const getUserName = (userId: string) => {
   return u ? (u.name || u.email) : userId
 }
 
-// Format date
-const formatDate = (input: string) => {
-  const d = new Date(input)
-  if (isNaN(d.getTime())) return input
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
-}
-
-// Format value
-const formatValue = (value: number | string | null | undefined, currency: string = 'USD') => {
-  if (value == null || value === '' || value === undefined) return '—'
-  const numValue = typeof value === 'string' ? parseFloat(value) : value
-  if (isNaN(numValue)) return '—'
-  
-  const currencySymbol = currency === 'VND' ? '₫' : '$'
-  const locale = currency === 'VND' ? 'vi-VN' : 'en-US'
-  const formatted = numValue.toLocaleString(locale, { 
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0 
-  })
-  
-  return currency === 'VND' ? `${formatted} ${currencySymbol}` : `${currencySymbol}${formatted}`
-}
-
-// Format status
-const formatStatus = (status: string) => {
-  const statusMap: Record<string, string> = {
-    'requested': t('commissions.requested'),
-    'confirmed': t('commissions.confirmed'),
-    'paid': t('commissions.paid'),
-  }
-  const statusText = statusMap[status] || status
-  return statusText.charAt(0).toUpperCase() + statusText.slice(1)
-}
-
-// Status color
-const statusColor = (status: string) => {
-  switch (status) {
-    case 'requested':
-      return 'yellow'
-    case 'confirmed':
-      return 'blue'
-    case 'paid':
-      return 'green'
-    default:
-      return 'gray'
-  }
-}
+const { formatDate, formatValue, formatStatus, statusColor } = useCommissionFormatters()
 
 // Filtered commissions
 const filteredCommissions = computed(() => {
@@ -160,32 +113,7 @@ const filteredCommissions = computed(() => {
   return filtered
 })
 
-// Year options
-const yearOptions = computed(() => {
-  const current = new Date().getFullYear()
-  const years: { label: string, value: number | string }[] = [
-    { label: t('common.all'), value: '' }
-  ]
-  for (let y = current; y >= current - 4; y--) {
-    years.push({ label: String(y), value: y })
-  }
-  return years
-})
-
-// Month options
-const monthOptions = computed(() => {
-  const options: { label: string, value: string }[] = [
-    { label: t('commissions.allMonths'), value: '' }
-  ]
-  if (selectedYear.value) {
-    for (let m = 1; m <= 12; m++) {
-      const value = `${selectedYear.value}-${String(m).padStart(2,'0')}`
-      const label = new Date(`${selectedYear.value}-${String(m).padStart(2,'0')}-01`).toLocaleString(undefined, { month: 'long'})
-      options.push({ label, value })
-    }
-  }
-  return options
-})
+const { yearOptions, monthOptions } = useDateFilters(selectedYear, selectedMonth)
 
 // Status options
 const statusOptions = computed(() => [

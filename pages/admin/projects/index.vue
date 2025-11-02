@@ -600,12 +600,12 @@ onMounted(async () => {
     </UCard>
 
     <!-- Create -->
-    <UModal v-model="isCreateOpen" :ui="{ width: 'sm:max-w-2xl' }">
+    <UModal v-model="isCreateOpen" :ui="{ width: 'sm:max-w-2xl', container: 'items-start' }">
       <UCard>
         <template #header>
           <h3 class="font-semibold">{{ $t('projects.newProject') }}</h3>
         </template>
-        <div class="space-y-4 max-h-[calc(100vh-250px)] overflow-y-auto pb-4">
+        <div class="space-y-4 max-h-[calc(100vh-250px)] overflow-y-auto overflow-x-hidden pb-4">
           <UFormGroup :label="$t('projects.projectName')">
             <UInput v-model="draft.name" @keyup.enter="createProject" />
           </UFormGroup>
@@ -636,6 +636,7 @@ onMounted(async () => {
               v-model="(draft as any).policy" 
               :rows="4"
               :placeholder="$t('projects.policyPlaceholder')"
+              :ui="{ base: 'resize-none' }"
             />
           </UFormGroup>
           <UFormGroup :label="$t('projects.addUsers')">
@@ -646,8 +647,11 @@ onMounted(async () => {
               multiple
               searchable
               :ui="{ 
-                option: { container: 'max-h-60 overflow-y-auto' }
+                width: 'w-full',
+                option: { container: 'max-h-60 overflow-y-auto overflow-x-hidden' },
+                popper: { placement: 'bottom-start', strategy: 'fixed' }
               }"
+              class="w-full"
             />
             <p class="text-xs text-gray-500 mt-1">{{ $t('projects.autoAdminNote') }}</p>
           </UFormGroup>

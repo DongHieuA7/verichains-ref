@@ -29,27 +29,7 @@ const projects = ref<any[]>([])
 // Store ref_percentage for each project
 const projectRefPercentages = ref<Record<string, number>>({})
 
-const formatDate = (input: string) => {
-  const d = new Date(input)
-  if (isNaN(d.getTime())) return input
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
-}
-
-const formatValue = (value: number | string | null | undefined, currency: string = 'USD') => {
-  if (value == null || value === '' || value === undefined) return '—'
-  const numValue = typeof value === 'string' ? parseFloat(value) : value
-  if (isNaN(numValue)) return '—'
-  
-  const currencySymbol = currency === 'VND' ? '₫' : '$'
-  const locale = currency === 'VND' ? 'vi-VN' : 'en-US'
-  const formatted = numValue.toLocaleString(locale, { 
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0 
-  })
-  
-  return currency === 'VND' ? `${formatted} ${currencySymbol}` : `${currencySymbol}${formatted}`
-}
+const { formatDate, formatValue, formatStatus, statusColor: getStatusColor } = useCommissionFormatters()
 
 const fetchProjects = async () => {
   if (!user.value) return
@@ -153,43 +133,8 @@ const getCommissionReceived = (commission: any) => {
   return originalValue * (refPercentage / 100)
 }
 
-const statusColor = (status: string) => {
-  switch (status) {
-    case 'requested':
-      return 'yellow'
-    case 'confirmed':
-      return 'blue'
-    case 'paid':
-      return 'green'
-    default:
-      return 'gray'
-  }
-}
-
-const yearOptions = computed(() => {
-  const { t } = useI18n()
-  const current = new Date().getFullYear()
-  const years: { label: string, value: number | string }[] = [
-    { label: t('common.all'), value: '' }
-  ]
-  for (let y = current; y >= current - 4; y--) {
-    years.push({ label: String(y), value: y })
-  }
-  return years
-})
-
-const monthOptions = computed(() => {
-  const { t } = useI18n()
-  const options: { label: string, value: string }[] = [
-    { label: t('commissions.allMonths'), value: '' } // Add "All" option
-  ]
-  for (let m = 1; m <= 12; m++) {
-    const value = `${selectedYear.value}-${String(m).padStart(2,'0')}`
-    const label = new Date(`${selectedYear.value}-${String(m).padStart(2,'0')}-01`).toLocaleString(undefined, { month: 'long'})
-    options.push({ label, value })
-  }
-  return options
-})
+const statusColor = getStatusColor
+const { yearOptions, monthOptions } = useDateFilters(selectedYear, selectedMonth)
 
 const filteredCommissions = computed(() => {
   let filtered = commissions.value
@@ -241,17 +186,7 @@ const statusOptions = computed(() => {
   ]
 })
 
-// Format status display with capital first letter
-const formatStatus = (status: string) => {
-  const { t } = useI18n()
-  const statusMap: Record<string, string> = {
-    'requested': t('commissions.requested'),
-    'confirmed': t('commissions.confirmed'),
-    'paid': t('commissions.paid'),
-  }
-  const statusText = statusMap[status] || status
-  return statusText.charAt(0).toUpperCase() + statusText.slice(1)
-}
+// formatStatus is already imported from useCommissionFormatters
 
 // Total statistics should show all commissions, not filtered ones
 // Calculate separately by currency
@@ -441,125 +376,47 @@ const claimCommission = async (row: any) => {
 
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div class="md:col-span-3">
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <!-- Projects Joined -->
-            <UCard class="border border-gray-200 hover:shadow-md transition-shadow">
-              <div class="flex items-start justify-between">
-                <div class="flex-1">
-                  <div class="flex items-center gap-3 mb-3">
-                    <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                      <UIcon name="i-lucide-folders" class="w-5 h-5 text-blue-600" />
-                    </div>
-                    <span class="text-sm font-medium text-gray-600">{{ $t('commissions.projectsJoined') }}</span>
-                  </div>
-                  <div class="text-3xl font-bold text-gray-900">{{ projectCount }}</div>
-                </div>
-              </div>
-            </UCard>
+          <!-- Row 1: Projects Joined, Total Contract Amount, Pending Contract Amount -->
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <StatisticsCard
+              :title="$t('commissions.projectsJoined')"
+              icon="i-lucide-folders"
+              icon-color="blue"
+              :value="projectCount"
+              currency="USD"
+            />
+            <StatisticsCard
+              :title="$t('commissions.totalContractAmount')"
+              icon="i-lucide-file-text"
+              icon-color="blue"
+              :value-USD="totals.totalContractAmountUSD"
+              :value-VND="totals.totalContractAmountVND"
+            />
+            <StatisticsCard
+              :title="$t('commissions.pendingContractAmount')"
+              icon="i-lucide-clock"
+              icon-color="yellow"
+              :value-USD="totals.pendingContractAmountUSD"
+              :value-VND="totals.pendingContractAmountVND"
+            />
+          </div>
 
-            <!-- Total Contract Amount -->
-            <UCard class="border border-gray-200 hover:shadow-md transition-shadow">
-              <div class="flex items-start justify-between">
-                <div class="flex-1">
-                  <div class="flex items-center gap-3 mb-3">
-                    <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                      <UIcon name="i-lucide-file-text" class="w-5 h-5 text-blue-600" />
-                    </div>
-                    <span class="text-sm font-medium text-gray-600">{{ $t('commissions.totalContractAmount') }}</span>
-                  </div>
-                  <div class="space-y-1">
-                    <template v-if="totals.totalContractAmountUSD > 0">
-                      <div class="text-3xl font-bold text-gray-900">{{ formatValue(totals.totalContractAmountUSD, 'USD') }}</div>
-                      <div v-if="totals.totalContractAmountVND > 0" class="text-base font-medium text-gray-500">{{ formatValue(totals.totalContractAmountVND, 'VND') }}</div>
-                    </template>
-                    <template v-else-if="totals.totalContractAmountVND > 0">
-                      <div class="text-3xl font-bold text-gray-900">{{ formatValue(totals.totalContractAmountVND, 'VND') }}</div>
-                    </template>
-                    <template v-else>
-                      <div class="text-3xl font-bold text-gray-400">—</div>
-                    </template>
-                  </div>
-                </div>
-              </div>
-            </UCard>
-
-            <!-- Pending Contract Amount -->
-            <UCard class="border border-gray-200 hover:shadow-md transition-shadow">
-              <div class="flex items-start justify-between">
-                <div class="flex-1">
-                  <div class="flex items-center gap-3 mb-3">
-                    <div class="w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center">
-                      <UIcon name="i-lucide-clock" class="w-5 h-5 text-yellow-600" />
-                    </div>
-                    <span class="text-sm font-medium text-gray-600">{{ $t('commissions.pendingContractAmount') }}</span>
-                  </div>
-                  <div class="space-y-1">
-                    <template v-if="totals.pendingContractAmountUSD > 0">
-                      <div class="text-3xl font-bold text-gray-900">{{ formatValue(totals.pendingContractAmountUSD, 'USD') }}</div>
-                      <div v-if="totals.pendingContractAmountVND > 0" class="text-base font-medium text-gray-500">{{ formatValue(totals.pendingContractAmountVND, 'VND') }}</div>
-                    </template>
-                    <template v-else-if="totals.pendingContractAmountVND > 0">
-                      <div class="text-3xl font-bold text-gray-900">{{ formatValue(totals.pendingContractAmountVND, 'VND') }}</div>
-                    </template>
-                    <template v-else>
-                      <div class="text-3xl font-bold text-gray-400">—</div>
-                    </template>
-                  </div>
-                </div>
-              </div>
-            </UCard>
-
-            <!-- Received Commission -->
-            <UCard class="border border-gray-200 hover:shadow-md transition-shadow">
-              <div class="flex items-start justify-between">
-                <div class="flex-1">
-                  <div class="flex items-center gap-3 mb-3">
-                    <div class="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
-                      <UIcon name="i-lucide-badge-dollar-sign" class="w-5 h-5 text-green-600" />
-                    </div>
-                    <span class="text-sm font-medium text-gray-600">{{ $t('commissions.receivedCommission') }}</span>
-                  </div>
-                  <div class="space-y-1">
-                    <template v-if="totals.receivedCommissionUSD > 0">
-                      <div class="text-3xl font-bold text-gray-900">{{ formatValue(totals.receivedCommissionUSD, 'USD') }}</div>
-                      <div v-if="totals.receivedCommissionVND > 0" class="text-base font-medium text-gray-500">{{ formatValue(totals.receivedCommissionVND, 'VND') }}</div>
-                    </template>
-                    <template v-else-if="totals.receivedCommissionVND > 0">
-                      <div class="text-3xl font-bold text-gray-900">{{ formatValue(totals.receivedCommissionVND, 'VND') }}</div>
-                    </template>
-                    <template v-else>
-                      <div class="text-3xl font-bold text-gray-400">—</div>
-                    </template>
-                  </div>
-                </div>
-              </div>
-            </UCard>
-
-            <!-- Pending Commission -->
-            <UCard class="border border-gray-200 hover:shadow-md transition-shadow">
-              <div class="flex items-start justify-between">
-                <div class="flex-1">
-                  <div class="flex items-center gap-3 mb-3">
-                    <div class="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center">
-                      <UIcon name="i-lucide-hourglass" class="w-5 h-5 text-orange-600" />
-                    </div>
-                    <span class="text-sm font-medium text-gray-600">{{ $t('commissions.pendingCommission') }}</span>
-                  </div>
-                  <div class="space-y-1">
-                    <template v-if="totals.pendingCommissionUSD > 0">
-                      <div class="text-3xl font-bold text-gray-900">{{ formatValue(totals.pendingCommissionUSD, 'USD') }}</div>
-                      <div v-if="totals.pendingCommissionVND > 0" class="text-base font-medium text-gray-500">{{ formatValue(totals.pendingCommissionVND, 'VND') }}</div>
-                    </template>
-                    <template v-else-if="totals.pendingCommissionVND > 0">
-                      <div class="text-3xl font-bold text-gray-900">{{ formatValue(totals.pendingCommissionVND, 'VND') }}</div>
-                    </template>
-                    <template v-else>
-                      <div class="text-3xl font-bold text-gray-400">—</div>
-                    </template>
-                  </div>
-                </div>
-              </div>
-            </UCard>
+          <!-- Row 2: Received Commission, Pending Commission -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <StatisticsCard
+              :title="$t('commissions.receivedCommission')"
+              icon="i-lucide-badge-dollar-sign"
+              icon-color="green"
+              :value-USD="totals.receivedCommissionUSD"
+              :value-VND="totals.receivedCommissionVND"
+            />
+            <StatisticsCard
+              :title="$t('commissions.pendingCommission')"
+              icon="i-lucide-hourglass"
+              icon-color="orange"
+              :value-USD="totals.pendingCommissionUSD"
+              :value-VND="totals.pendingCommissionVND"
+            />
           </div>
         </div>
         <div class="md:col-span-3">
