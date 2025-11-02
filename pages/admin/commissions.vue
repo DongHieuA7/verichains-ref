@@ -444,11 +444,9 @@ onMounted(async () => {
               max="100"
               :placeholder="$t('commissions.commissionRate')"
             />
-            <template #help>
-              <span class="text-xs text-gray-500">
-                {{ $t('commissions.commissionAmount') }}: {{ formatValue(calculateCommissionAmount(), 'USD') }}
-              </span>
-            </template>
+            <p class="text-xs text-gray-500 mt-1">
+              {{ $t('commissions.commissionAmount') }}: {{ formatValue(calculateCommissionAmount(), 'USD') }}
+            </p>
           </UFormGroup>
           
           <UFormGroup :label="$t('common.status')">
