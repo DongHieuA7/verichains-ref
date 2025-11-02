@@ -13,6 +13,9 @@ const isGlobalAdminValue = ref(false)
 const { formatDate } = useCommissionFormatters()
 const { getErrorMessage } = useErrorMessage()
 
+// Filter
+const selectedRole = ref<string>('')
+
 const form = reactive({
   email: '',
   name: '',
@@ -116,6 +119,26 @@ const userOptions = computed(() => {
     .map(u => ({ label: `${u.name || u.email} (${u.email})`, value: u.id }))
 })
 
+// Role options for filter
+const roleOptions = computed(() => [
+  { label: t('common.all'), value: '' },
+  { label: t('admin.globalAdmin') || 'Global Admin', value: 'global_admin' },
+  { label: t('admin.projectOwner') || 'Project Owner', value: 'project_owner' },
+])
+
+// Filtered admins
+const filteredAdmins = computed(() => {
+  if (!selectedRole.value) {
+    return admins.value
+  }
+  return admins.value.filter(admin => admin.role === selectedRole.value)
+})
+
+// Reset filter
+const resetFilter = () => {
+  selectedRole.value = ''
+}
+
 const currentAdminId = ref<string | null>(null)
 
 const getCurrentAdminId = async () => {
@@ -216,11 +239,34 @@ const removeProjectOwner = async (adminId: string) => {
       <template #header>
         <div class="flex items-center justify-between">
           <h2 class="font-semibold">{{ $t('users.admins') }}</h2>
-          <UButton color="primary" @click="isInviteOpen = true">{{ $t('users.inviteAdmin') }}</UButton>
+          <div class="flex items-center gap-3">
+            <span class="text-sm text-gray-500">{{ $t('common.filter') }}</span>
+            <USelect 
+              v-model="selectedRole" 
+              :options="roleOptions" 
+              :placeholder="$t('common.all')"
+              class="min-w-[150px]"
+            />
+            <UButton 
+              v-if="selectedRole"
+              color="gray" 
+              variant="soft" 
+              size="xs"
+              @click="resetFilter"
+              icon="i-lucide-x"
+            >
+              {{ $t('common.reset') || 'Reset' }}
+            </UButton>
+            <UButton color="primary" @click="isInviteOpen = true">{{ $t('users.inviteAdmin') }}</UButton>
+          </div>
         </div>
       </template>
 
-      <UTable :rows="admins" :columns="[
+      <div v-if="filteredAdmins.length === 0" class="text-center py-8 text-gray-500">
+        {{ $t('users.noAdminsFound') || 'No admins found' }}
+      </div>
+
+      <UTable v-else :rows="filteredAdmins" :columns="[
         { key: 'name', label: $t('common.name') },
         { key: 'email', label: $t('common.email') },
         { key: 'created_at', label: $t('projects.created') },

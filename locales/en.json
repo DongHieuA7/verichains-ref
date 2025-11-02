@@ -39,6 +39,7 @@
     "projects": "Projects",
     "myCommissions": "My Commissions",
     "adminProjects": "Projects",
+    "myProjects": "My Projects",
     "adminUsers": "Users",
     "adminCommissions": "Commissions",
     "adminAdmins": "Admins"
@@ -173,6 +174,7 @@
     "projectOwner": "Project Owner",
     "onlyGlobalAdminsCanCreateProjects": "Only global admins can create projects",
     "allCommissions": "All Commissions",
+    "myProjects": "My Projects",
     "onlyGlobalAdminsCanDelete": "Only global admins can delete projects",
     "onlyGlobalAdminsCanEdit": "Only global admins can edit projects",
     "onlyGlobalAdminsCanAddUsers": "Only global admins can add users",
