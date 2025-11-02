@@ -262,11 +262,7 @@ const removeProjectOwner = async (adminId: string) => {
         </div>
       </template>
 
-      <div v-if="filteredAdmins.length === 0" class="text-center py-8 text-gray-500">
-        {{ $t('users.noAdminsFound') || 'No admins found' }}
-      </div>
-
-      <UTable v-else :rows="filteredAdmins" :columns="[
+      <UTable :rows="filteredAdmins" :columns="[
         { key: 'name', label: $t('common.name') },
         { key: 'email', label: $t('common.email') },
         { key: 'created_at', label: $t('projects.created') },
@@ -312,6 +308,11 @@ const removeProjectOwner = async (adminId: string) => {
           <span v-else-if="row.role === 'global_admin' || row.id === currentAdminId" class="text-gray-400 text-sm">
             -
           </span>
+        </template>
+        <template #empty>
+          <div class="text-center py-8 text-gray-500">
+            {{ $t('users.noAdminsFound') || 'No admins found' }}
+          </div>
         </template>
       </UTable>
     </UCard>

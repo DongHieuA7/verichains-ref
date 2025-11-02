@@ -165,9 +165,19 @@ const createProject = async () => {
   }
   
   // Add selected owners to project, or use current admin as default
-  const admins = draft.selectedOwners.length > 0 
-    ? draft.selectedOwners 
-    : [currentAdminId.value]
+  // Ensure selectedOwners is array of strings (user IDs)
+  let admins: string[] = []
+  if (draft.selectedOwners.length > 0) {
+    // Extract values if they are objects, otherwise use as is
+    admins = draft.selectedOwners.map(owner => 
+      typeof owner === 'string' ? owner : (owner as any)?.value || owner
+    ).filter((id): id is string => typeof id === 'string' && id.length > 0)
+  }
+  
+  // If no valid owners selected, use current admin as default
+  if (admins.length === 0) {
+    admins = [currentAdminId.value]
+  }
   
   const { data, error } = await supabase
     .from('projects')
@@ -204,7 +214,12 @@ const createProject = async () => {
     
     // Add selected users to project if any
     if (draft.selectedUsers.length > 0) {
-      const userInserts = draft.selectedUsers.map(uid => ({
+      // Ensure selectedUsers is array of strings (user IDs)
+      const userIds = draft.selectedUsers.map(user => 
+        typeof user === 'string' ? user : (user as any)?.value || user
+      ).filter((id): id is string => typeof id === 'string' && id.length > 0)
+      
+      const userInserts = userIds.map(uid => ({
         project_id: data.id,
         user_id: uid,
         ref_percentage: 10
@@ -652,6 +667,11 @@ onMounted(async () => {
             </UButton>
           </div>
         </template>
+        <template #empty>
+          <div class="text-center py-8 text-gray-500">
+            {{ $t('projects.noProjectsAvailable') || 'No projects found' }}
+          </div>
+        </template>
       </UTable>
     </UCard>
 
@@ -702,6 +722,7 @@ onMounted(async () => {
               :placeholder="$t('projects.selectOwners')"
               multiple
               searchable
+              value-attribute="value"
               :ui="{ 
                 width: 'w-full',
                 option: { container: 'max-h-60 overflow-y-auto overflow-x-hidden' },
@@ -718,6 +739,7 @@ onMounted(async () => {
               :placeholder="$t('projects.selectUsersToAdd')"
               multiple
               searchable
+              value-attribute="value"
               :ui="{ 
                 width: 'w-full',
                 option: { container: 'max-h-60 overflow-y-auto overflow-x-hidden' },

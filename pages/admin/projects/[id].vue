@@ -485,10 +485,28 @@ const isAddUserOpen = ref(false)
 const isAddAdminOpen = ref(false)
 const isEditRequestOpen = ref(false)
 const isEditPolicyOpen = ref(false)
+const isEditCommissionRateRangeOpen = ref(false)
+const isEditCommissionOpen = ref(false)
 const manageState = reactive<{ addUser?: string, addAdmin?: string }>({})
 const editRef = reactive<{ uid: string, value: number | null }>({ uid: '', value: null })
 const editRequest = reactive<{ id: string, ref_percentage: number | null }>({ id: '', ref_percentage: null })
 const editPolicy = reactive<{ policy: string }>({ policy: '' })
+const editCommissionRateRange = reactive<{ commission_rate_min: number | null, commission_rate_max: number | null }>({ commission_rate_min: null, commission_rate_max: null })
+const editCommissionDraft = reactive<{ 
+  id: string, 
+  client_name: string, 
+  description: string, 
+  contract_amount: number | null, 
+  commission_rate: number | null, 
+  status: 'requested' | 'confirmed' | 'paid' 
+}>({ 
+  id: '', 
+  client_name: '', 
+  description: '', 
+  contract_amount: null, 
+  commission_rate: null, 
+  status: 'requested' 
+})
 const openEditRequest = (request: JoinRequest) => {
   editRequest.id = request.id
   editRequest.ref_percentage = request.ref_percentage || 10
@@ -605,6 +623,141 @@ const savePolicy = async () => {
     description: t('messages.success'),
   })
 }
+
+const openEditCommissionRateRange = () => {
+  if (!isProjectAdmin.value) {
+    const toast = useToast()
+    toast.add({
+      color: 'red',
+      title: t('admin.permissionDenied'),
+      description: t('admin.onlyProjectAdminsCanEdit'),
+    })
+    return
+  }
+  editCommissionRateRange.commission_rate_min = project.value?.commission_rate_min ?? null
+  editCommissionRateRange.commission_rate_max = project.value?.commission_rate_max ?? null
+  isEditCommissionRateRangeOpen.value = true
+}
+
+const saveCommissionRateRange = async () => {
+  if (!isProjectAdmin.value || !project.value) return
+  
+  const { error } = await supabase
+    .from('projects')
+    .update({ 
+      commission_rate_min: editCommissionRateRange.commission_rate_min || null,
+      commission_rate_max: editCommissionRateRange.commission_rate_max || null
+    })
+    .eq('id', projectId.value)
+  
+  if (error) {
+    const toast = useToast()
+    toast.add({
+      color: 'red',
+      title: t('messages.failedToCreateProject'),
+      description: getErrorMessage(error),
+    })
+    return
+  }
+  
+  if (project.value) {
+    project.value.commission_rate_min = editCommissionRateRange.commission_rate_min
+    project.value.commission_rate_max = editCommissionRateRange.commission_rate_max
+  }
+  
+  isEditCommissionRateRangeOpen.value = false
+  
+  const toast = useToast()
+  toast.add({
+    color: 'green',
+    title: t('common.save'),
+    description: t('messages.success'),
+  })
+}
+
+// Open edit commission modal
+const openEditCommission = (row: Commission) => {
+  if (!row || !row.id) return
+  
+  if (!isProjectAdmin.value) {
+    const toast = useToast()
+    toast.add({
+      color: 'red',
+      title: t('admin.permissionDenied'),
+      description: t('admin.onlyProjectAdminsCanEdit'),
+    })
+    return
+  }
+  
+  editCommissionDraft.id = row.id || ''
+  editCommissionDraft.contract_amount = (row.contract_amount != null && row.contract_amount !== '') 
+    ? Number(row.contract_amount) 
+    : (row.original_value != null && row.original_value !== '') 
+      ? Number(row.original_value) 
+      : null
+  editCommissionDraft.commission_rate = (row.commission_rate != null && row.commission_rate !== '') 
+    ? Number(row.commission_rate) 
+    : null
+  editCommissionDraft.status = row.status || 'requested'
+  editCommissionDraft.client_name = (row.client_name != null) ? String(row.client_name) : ''
+  editCommissionDraft.description = (row.description != null) ? String(row.description) : ''
+  
+  isEditCommissionOpen.value = true
+}
+
+// Calculate commission amount
+const calculateCommissionAmount = () => {
+  if (editCommissionDraft.contract_amount != null && editCommissionDraft.commission_rate != null) {
+    return Number(editCommissionDraft.contract_amount || 0) * (Number(editCommissionDraft.commission_rate || 0) / 100)
+  }
+  return 0
+}
+
+// Save commission
+const saveCommission = async () => {
+  if (!editCommissionDraft.id || !isProjectAdmin.value) return
+  
+  try {
+    const calculatedValue = calculateCommissionAmount()
+    
+    const updateData: any = {
+      client_name: editCommissionDraft.client_name || null,
+      description: editCommissionDraft.description || null,
+      contract_amount: editCommissionDraft.contract_amount || null,
+      commission_rate: editCommissionDraft.commission_rate || null,
+      status: editCommissionDraft.status,
+      original_value: editCommissionDraft.contract_amount || null,
+    }
+    
+    if (calculatedValue > 0 && editCommissionDraft.contract_amount != null && editCommissionDraft.commission_rate != null) {
+      updateData.value = calculatedValue
+    }
+    
+    const { error } = await supabase
+      .from('commissions')
+      .update(updateData)
+      .eq('id', editCommissionDraft.id)
+    
+    if (error) throw error
+    
+    await fetchCommissions()
+    isEditCommissionOpen.value = false
+    
+    const toast = useToast()
+    toast.add({
+      color: 'green',
+      title: t('common.save'),
+      description: t('messages.success'),
+    })
+  } catch (error: any) {
+    const toast = useToast()
+    toast.add({
+      color: 'red',
+      title: t('messages.failedToUpdate'),
+      description: getErrorMessage(error),
+    })
+  }
+}
 </script>
 
 <template>
@@ -644,6 +797,34 @@ const savePolicy = async () => {
             </template>
             <div class="whitespace-pre-wrap text-sm text-gray-700">
               {{ project?.policy || $t('common.noData') }}
+            </div>
+          </UCard>
+        </div>
+
+        <!-- Commission Rate Range Section -->
+        <div class="col-span-1">
+          <UCard>
+            <template #header>
+              <div class="flex items-center justify-between">
+                <h3 class="font-medium">{{ $t('projects.commissionRateRange') }}</h3>
+                <UButton 
+                  v-if="isProjectAdmin"
+                  size="xs" 
+                  color="gray" 
+                  variant="soft"
+                  @click="openEditCommissionRateRange"
+                >
+                  {{ $t('common.edit') }}
+                </UButton>
+              </div>
+            </template>
+            <div class="text-sm text-gray-700">
+              <div v-if="project?.commission_rate_min != null || project?.commission_rate_max != null">
+                <span v-if="project?.commission_rate_min != null">{{ project.commission_rate_min }}%</span>
+                <span v-if="project?.commission_rate_min != null && project?.commission_rate_max != null"> - </span>
+                <span v-if="project?.commission_rate_max != null">{{ project.commission_rate_max }}%</span>
+              </div>
+              <span v-else>{{ $t('common.noData') }}</span>
             </div>
           </UCard>
         </div>
@@ -743,8 +924,16 @@ const savePolicy = async () => {
                   </tr>
                 </thead>
                 <tbody>
-                  <template v-for="row in usersTableData" :key="`${row.user_id}-${row.status}`">
-                    <tr class="border-t">
+                  <template v-if="usersTableData.length === 0">
+                    <tr>
+                      <td colspan="7" class="py-8 text-center text-gray-500">
+                        {{ $t('projects.noUsersOrPending') }}
+                      </td>
+                    </tr>
+                  </template>
+                  <template v-else>
+                    <template v-for="row in usersTableData" :key="`${row.user_id}-${row.status}`">
+                      <tr class="border-t">
                       <td class="py-2">
                         <UButton 
                           v-if="row.status === 'joined'" 
@@ -869,26 +1058,42 @@ const savePolicy = async () => {
                             <UBadge :label="formatStatus(row.status || 'unknown')" :color="row.status === 'paid' ? 'green' : row.status === 'confirmed' ? 'blue' : 'yellow'" variant="soft" />
                           </template>
                           <template #actions-data="{ row }">
-                            <UButton 
-                              v-if="row.status === 'requested'" 
-                              size="xs" 
-                              color="gray" 
-                              @click="confirmCommission(row)"
-                              :disabled="!isProjectAdmin"
-                              :title="!isProjectAdmin ? $t('admin.onlyProjectAdminsCanApproveCommissions') : ''"
-                            >
-                              {{ $t('projects.approve') }}
-                            </UButton>
-                            <span v-else class="text-xs text-gray-400">—</span>
+                            <div class="flex gap-2">
+                              <UButton 
+                                size="xs" 
+                                color="gray" 
+                                @click="openEditCommission(row)"
+                                :disabled="!isProjectAdmin"
+                                :title="!isProjectAdmin ? $t('admin.onlyProjectAdminsCanEdit') : ''"
+                              >
+                                {{ $t('common.edit') }}
+                              </UButton>
+                              <UButton 
+                                v-if="row.status === 'requested'" 
+                                size="xs" 
+                                color="green" 
+                                variant="soft"
+                                @click="confirmCommission(row)"
+                                :disabled="!isProjectAdmin"
+                                :title="!isProjectAdmin ? $t('admin.onlyProjectAdminsCanApproveCommissions') : ''"
+                              >
+                                {{ $t('projects.approve') }}
+                              </UButton>
+                            </div>
+                          </template>
+                          <template #empty>
+                            <div class="text-xs text-gray-500 py-4 text-center">
+                              {{ $t('commissions.noCommissions') }}
+                            </div>
                           </template>
                         </UTable>
                       </td>
                     </tr>
+                    </template>
                   </template>
                 </tbody>
               </table>
             </div>
-            <div v-if="usersTableData.length === 0" class="text-xs text-gray-500 py-2">{{ $t('projects.noUsersOrPending') }}</div>
           </UCard>
         </div>
       </div>
@@ -1078,6 +1283,116 @@ const savePolicy = async () => {
             <div class="flex justify-end gap-2">
               <UButton color="gray" variant="soft" @click="isEditPolicyOpen = false">{{ $t('common.cancel') }}</UButton>
               <UButton color="primary" @click="savePolicy">{{ $t('common.save') }}</UButton>
+            </div>
+          </template>
+        </UCard>
+      </UModal>
+
+      <UModal v-model="isEditCommissionRateRangeOpen">
+        <UCard>
+          <template #header>
+            <h3 class="font-semibold">{{ $t('projects.commissionRateRange') }}</h3>
+          </template>
+          <div class="space-y-4">
+            <UFormGroup :label="$t('projects.commissionRateMin')">
+              <UInput 
+                v-model.number="editCommissionRateRange.commission_rate_min" 
+                type="number" 
+                step="0.01"
+                min="0"
+                max="100"
+                :placeholder="$t('projects.commissionRateMinPlaceholder')"
+              />
+            </UFormGroup>
+            <UFormGroup :label="$t('projects.commissionRateMax')">
+              <UInput 
+                v-model.number="editCommissionRateRange.commission_rate_max" 
+                type="number" 
+                step="0.01"
+                min="0"
+                max="100"
+                :placeholder="$t('projects.commissionRateMaxPlaceholder')"
+              />
+            </UFormGroup>
+          </div>
+          <template #footer>
+            <div class="flex justify-end gap-2">
+              <UButton color="gray" variant="soft" @click="isEditCommissionRateRangeOpen = false">{{ $t('common.cancel') }}</UButton>
+              <UButton color="primary" @click="saveCommissionRateRange">{{ $t('common.save') }}</UButton>
+            </div>
+          </template>
+        </UCard>
+      </UModal>
+
+      <UModal v-model="isEditCommissionOpen">
+        <UCard>
+          <template #header>
+            <h3 class="font-semibold">{{ $t('commissions.editCommission') }}</h3>
+          </template>
+          <div class="space-y-4">
+            <UFormGroup :label="$t('commissions.clientName')">
+              <UInput 
+                v-model="editCommissionDraft.client_name" 
+                :placeholder="$t('commissions.clientNamePlaceholder')" 
+              />
+            </UFormGroup>
+            
+            <UFormGroup :label="$t('common.description')">
+              <UTextarea 
+                v-model="editCommissionDraft.description" 
+                :rows="3"
+              />
+            </UFormGroup>
+            
+            <UFormGroup :label="$t('commissions.contractAmount')">
+              <UInput 
+                v-model.number="editCommissionDraft.contract_amount" 
+                type="number" 
+                step="0.01"
+                :placeholder="$t('commissions.contractAmount')"
+              />
+            </UFormGroup>
+            
+            <UFormGroup :label="$t('commissions.commissionRate')">
+              <UInput 
+                v-model.number="editCommissionDraft.commission_rate" 
+                type="number" 
+                step="0.01" 
+                min="0" 
+                max="100"
+                :placeholder="$t('commissions.commissionRate')"
+              />
+              <p class="text-xs text-gray-500 mt-1">
+                {{ $t('commissions.commissionAmount') }}: {{ formatValue(calculateCommissionAmount(), 'USD') }}
+              </p>
+            </UFormGroup>
+            
+            <UFormGroup :label="$t('common.status')">
+              <USelect 
+                v-model="editCommissionDraft.status"
+                :options="[
+                  { label: $t('commissions.requested'), value: 'requested' },
+                  { label: $t('commissions.confirmed'), value: 'confirmed' },
+                  { label: $t('commissions.paid'), value: 'paid' },
+                ]"
+              />
+            </UFormGroup>
+          </div>
+          <template #footer>
+            <div class="flex justify-end gap-2">
+              <UButton 
+                color="gray" 
+                variant="soft" 
+                @click="isEditCommissionOpen = false"
+              >
+                {{ $t('common.cancel') }}
+              </UButton>
+              <UButton 
+                color="primary" 
+                @click="saveCommission"
+              >
+                {{ $t('common.save') }}
+              </UButton>
             </div>
           </template>
         </UCard>

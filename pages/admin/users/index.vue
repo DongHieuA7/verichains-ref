@@ -155,6 +155,11 @@ const invite = async () => {
                 <UButton size="xs" color="red" variant="soft" @click="openDeleteConfirm(row.id)">{{ $t('common.delete') }}</UButton>
               </div>
             </template>
+            <template #empty>
+              <div class="text-center py-8 text-gray-500">
+                {{ $t('users.noUsersFound') || 'No users found' }}
+              </div>
+            </template>
           </UTable>
         </div>
       </div>

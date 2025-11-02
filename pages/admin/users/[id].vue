@@ -290,10 +290,7 @@ watch(userCommissions, () => {
           <template #header>
             <h3 class="font-medium">{{ $t('commissions.projectsJoined') }}</h3>
           </template>
-          <div v-if="userProjects.length === 0" class="text-sm text-gray-500 py-4 text-center">
-            {{ $t('projects.noProjectsAvailable') }}
-          </div>
-          <UTable v-else :rows="userProjects" :columns="[
+          <UTable :rows="userProjects" :columns="[
             { key: 'name', label: $t('common.name') },
             { key: 'ref_percentage', label: $t('projects.refPercentage') },
             { key: 'joined_at', label: $t('projects.joinedRequested') },
@@ -303,6 +300,11 @@ watch(userCommissions, () => {
             </template>
             <template #ref_percentage-data="{ row }">
               <span>{{ row.ref_percentage }}%</span>
+            </template>
+            <template #empty>
+              <div class="text-sm text-gray-500 py-4 text-center">
+                {{ $t('projects.noProjectsAvailable') }}
+              </div>
             </template>
           </UTable>
         </UCard>
@@ -373,10 +375,7 @@ watch(userCommissions, () => {
           </div>
 
           <!-- Commissions Table -->
-          <div v-if="filteredCommissions.length === 0" class="text-sm text-gray-500 py-4 text-center">
-            {{ $t('commissions.noCommissions') }}
-          </div>
-          <UTable v-else :rows="filteredCommissions" :columns="[
+          <UTable :rows="filteredCommissions" :columns="[
             { key: 'date', label: $t('common.date') },
             { key: 'project_id', label: $t('common.project') },
             { key: 'client_name', label: $t('commissions.clientName') },
@@ -418,6 +417,11 @@ watch(userCommissions, () => {
                 {{ $t('projects.approve') }}
               </UButton>
               <span v-else class="text-xs text-gray-400">—</span>
+            </template>
+            <template #empty>
+              <div class="text-sm text-gray-500 py-4 text-center">
+                {{ $t('commissions.noCommissions') }}
+              </div>
             </template>
           </UTable>
         </UCard>

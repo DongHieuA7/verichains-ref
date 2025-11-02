@@ -445,6 +445,11 @@ const saveEdit = async () => {
               <UButton v-if="row.status === 'requested'" color="gray" size="xs" @click="openEdit(row)">{{ $t('commissions.edit') }}</UButton>
               <span v-else class="text-xs text-gray-400">—</span>
             </template>
+            <template #empty>
+              <div class="text-center py-8 text-gray-500">
+                {{ $t('commissions.noCommissions') }}
+              </div>
+            </template>
           </UTable>
         </div>
 

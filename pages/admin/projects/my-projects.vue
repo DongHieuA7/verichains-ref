@@ -693,11 +693,7 @@ watch(filteredProjects, () => {
         </div>
       </template>
 
-      <div v-if="filteredProjects.length === 0" class="text-center py-8 text-gray-500">
-        {{ $t('projects.noProjects') || 'No projects found' }}
-      </div>
-
-      <UTable v-else :rows="tableRows" :columns="columns">
+      <UTable :rows="tableRows" :columns="columns">
         <template #name-data="{ row }">
           <NuxtLink class="text-primary hover:underline" :to="{ name: 'admin-projects-id', params: { id: row.id } }">{{ row.name }}</NuxtLink>
         </template>
@@ -740,6 +736,11 @@ watch(filteredProjects, () => {
             >
               {{ $t('common.edit') }}
             </UButton>
+          </div>
+        </template>
+        <template #empty>
+          <div class="text-center py-8 text-gray-500">
+            {{ $t('projects.noProjects') || 'No projects found' }}
           </div>
         </template>
       </UTable>
@@ -929,10 +930,6 @@ watch(filteredProjects, () => {
         <div class="text-gray-500">{{ $t('common.loading') || 'Loading...' }}</div>
       </div>
 
-      <div v-else-if="filteredCommissions.length === 0" class="text-center py-8 text-gray-500">
-        {{ $t('commissions.noCommissions') }}
-      </div>
-
       <UTable 
         v-else
         :rows="filteredCommissions" 
@@ -998,6 +995,11 @@ watch(filteredProjects, () => {
           >
             {{ $t('common.edit') }}
           </UButton>
+        </template>
+        <template #empty>
+          <div class="text-center py-8 text-gray-500">
+            {{ $t('commissions.noCommissions') }}
+          </div>
         </template>
       </UTable>
     </UCard>
