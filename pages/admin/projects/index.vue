@@ -7,6 +7,7 @@ useSeoMeta({ title: `Admin - ${t('common.projects')}` })
 const supabase = useSupabaseClient()
 const user = useSupabaseUser()
 const currentAdminId = computed(() => user.value?.id || '')
+const { isGlobalAdmin, canManageProject } = useAdminRole()
 
 type Project = { id: string, name: string, admins: string[], commission_rate_min?: number | null, commission_rate_max?: number | null, policy?: string | null }
 const projects = ref<Project[]>([])
@@ -34,9 +35,27 @@ const draft = reactive<{
 })
 const selected = ref<Project | null>(null)
 
-// Check if current user is admin of a project
-const isProjectAdmin = (project: Project | null) => {
+// Role states
+const isGlobalAdminValue = ref(false)
+const projectPermissions = ref<Record<string, boolean>>({})
+
+// Check if current user can manage a project (Global Admin or Project Owner)
+const canManageProjectSync = (project: Project | null): boolean => {
   if (!project || !currentAdminId.value) return false
+  // Use cached permission if available
+  if (projectPermissions.value[project.id] !== undefined) {
+    return projectPermissions.value[project.id]
+  }
+  // Fallback: check if in admins array (for Project Owner)
+  return (project.admins || []).includes(currentAdminId.value)
+}
+
+// Backward compatibility - check if user is project owner (not global admin)
+const isProjectAdmin = (project: Project | null): boolean => {
+  if (!project || !currentAdminId.value) return false
+  // If global admin, return true
+  if (isGlobalAdminValue.value) return true
+  // Otherwise check if in admins array
   return (project.admins || []).includes(currentAdminId.value)
 }
 
@@ -50,17 +69,28 @@ const availableUserOptionsForManage = computed(() => {
 
 const userOptions = computed(() => allUsers.value.map(u => ({ label: u.name || u.email, value: u.id })))
 
-// Filter out admins already in project
+// Filter out admins already in project and global admins
+// Only project owners can be added to projects
 const availableAdminOptionsForManage = computed(() => {
   if (!selected.value) return []
   const set = new Set(selected.value.admins || [])
   return allAdmins.value
-    .filter(a => !set.has(a.id))
-    .map(a => ({ label: a.name || a.email, value: a.id }))
+    .filter(a => {
+      // Exclude if already in project
+      if (set.has(a.id)) return false
+      // Exclude global admins (only allow project_owner or null role)
+      // Global admins must be set manually in database
+      return a.role !== 'global_admin'
+    })
+    .map(a => ({ 
+      label: `${a.name || a.email}${a.role ? ` (${a.role === 'project_owner' ? 'Project Owner' : a.role})` : ''}`, 
+      value: a.id 
+    }))
 })
 
 const columns = computed(() => [
   { key: 'name', label: t('common.project') },
+  { key: 'commissionRate', label: t('projects.commissionRateRange') },
   { key: 'usersCount', label: t('common.users') },
   { key: 'adminsCount', label: t('common.admins') },
   { key: 'actions', label: t('common.actions') },
@@ -85,7 +115,19 @@ const openCreate = () => {
   isCreateOpen.value = true 
 }
 
-const openEdit = (p: Project) => { 
+const openEdit = async (p: Project) => {
+  // Check permission
+  const canManage = await canManageProject(p.id)
+  if (!canManage) {
+    const toast = useToast()
+    toast.add({
+      color: 'red',
+      title: t('admin.permissionDenied'),
+      description: isGlobalAdminValue.value ? t('admin.onlyGlobalAdminsCanEdit') : t('admin.onlyProjectAdminsCanEdit'),
+    })
+    return
+  }
+  
   draft.id = p.id
   draft.name = p.name
   draft.commission_rate_min = p.commission_rate_min || null
@@ -175,13 +217,14 @@ const saveProject = async () => {
   const project = projects.value.find(p => p.id === draft.id)
   if (!project) return
   
-  // Check if current user is admin of this project
-  if (!isProjectAdmin(project)) {
+  // Check if current user can manage this project
+  const canManage = await canManageProject(project.id)
+  if (!canManage) {
     const toast = useToast()
     toast.add({
       color: 'red',
       title: t('admin.permissionDenied'),
-      description: t('admin.onlyProjectAdminsCanEdit'),
+      description: isGlobalAdminValue.value ? t('admin.onlyGlobalAdminsCanEdit') : t('admin.onlyProjectAdminsCanEdit'),
     })
     isEditOpen.value = false
     return
@@ -204,13 +247,25 @@ const saveProject = async () => {
 }
 
 const deleteProject = async (p: Project) => {
-  // Check if current user is admin of this project
-  if (!isProjectAdmin(p)) {
+  // Check if current user can manage this project
+  const canManage = await canManageProject(p.id)
+  if (!canManage) {
     const toast = useToast()
     toast.add({
       color: 'red',
       title: t('admin.permissionDenied'),
-      description: t('admin.onlyProjectAdminsCanDelete'),
+      description: isGlobalAdminValue.value ? t('admin.onlyGlobalAdminsCanDelete') : t('admin.onlyProjectAdminsCanDelete'),
+    })
+    return
+  }
+  
+  // Only global admins can delete projects
+  if (!isGlobalAdminValue.value) {
+    const toast = useToast()
+    toast.add({
+      color: 'red',
+      title: t('admin.permissionDenied'),
+      description: t('admin.onlyGlobalAdminsCanDelete'),
     })
     return
   }
@@ -233,13 +288,14 @@ const fetchProjectUsers = async (projectId: string) => {
 const addUserToProject = async () => { 
   if (!selected.value || !manageState.addUser) return
   
-  // Check if current user is admin of this project
-  if (!isProjectAdmin(selected.value)) {
+  // Check if current user can manage this project
+  const canManage = await canManageProject(selected.value.id)
+  if (!canManage) {
     const toast = useToast()
     toast.add({
       color: 'red',
       title: t('admin.permissionDenied'),
-      description: t('admin.onlyProjectAdminsCanAddUsers'),
+      description: isGlobalAdminValue.value ? t('admin.onlyGlobalAdminsCanAddUsers') : t('admin.onlyProjectAdminsCanAddUsers'),
     })
     return
   }
@@ -301,13 +357,26 @@ const removeUserFromProject = async (uid: string) => {
 const addAdminToProject = async () => { 
   if (!selected.value || !manageState.addAdmin) return
   
-  // Check if current user is admin of this project
-  if (!isProjectAdmin(selected.value)) {
+  // Check if current user can manage this project
+  const canManage = await canManageProject(selected.value.id)
+  if (!canManage) {
     const toast = useToast()
     toast.add({
       color: 'red',
       title: t('admin.permissionDenied'),
-      description: t('admin.onlyProjectAdminsCanAddAdmins'),
+      description: isGlobalAdminValue.value ? t('admin.onlyGlobalAdminsCanAddAdmins') : t('admin.onlyProjectAdminsCanAddAdmins'),
+    })
+    return
+  }
+  
+  // Check if trying to add a global admin
+  const adminToAdd = allAdmins.value.find(a => a.id === manageState.addAdmin)
+  if (adminToAdd && adminToAdd.role === 'global_admin') {
+    const toast = useToast()
+    toast.add({
+      color: 'red',
+      title: t('admin.cannotAddGlobalAdmin'),
+      description: t('admin.globalAdminMustBeSetManually'),
     })
     return
   }
@@ -351,13 +420,14 @@ const addAdminToProject = async () => {
 const removeAdminFromProject = async (uid: string) => { 
   if (!selected.value) return
   
-  // Check if current user is admin of this project
-  if (!isProjectAdmin(selected.value)) {
+  // Check if current user can manage this project
+  const canManage = await canManageProject(selected.value.id)
+  if (!canManage) {
     const toast = useToast()
     toast.add({
       color: 'red',
       title: t('admin.permissionDenied'),
-      description: t('admin.onlyProjectAdminsCanRemoveAdmins'),
+      description: isGlobalAdminValue.value ? t('admin.onlyGlobalAdminsCanRemoveAdmins') : t('admin.onlyProjectAdminsCanRemoveAdmins'),
     })
     return
   }
@@ -380,13 +450,37 @@ const displayAdmin = (uid: string) => {
   return a ? (a.name || a.email) : uid 
 }
 
-const openManageUsers = async (p: Project) => { 
+const openManageUsers = async (p: Project) => {
+  // Check permission
+  const canManage = await canManageProject(p.id)
+  if (!canManage) {
+    const toast = useToast()
+    toast.add({
+      color: 'red',
+      title: t('admin.permissionDenied'),
+      description: isGlobalAdminValue.value ? t('admin.onlyGlobalAdminsCanManageUsers') : t('admin.onlyProjectAdminsCanManageUsers'),
+    })
+    return
+  }
+  
   selected.value = JSON.parse(JSON.stringify(p))
   await fetchProjectUsers(p.id)
   isManageUsersOpen.value = true
 }
 
-const openManageAdmins = (p: Project) => { 
+const openManageAdmins = async (p: Project) => {
+  // Check permission
+  const canManage = await canManageProject(p.id)
+  if (!canManage) {
+    const toast = useToast()
+    toast.add({
+      color: 'red',
+      title: t('admin.permissionDenied'),
+      description: isGlobalAdminValue.value ? t('admin.onlyGlobalAdminsCanManageAdmins') : t('admin.onlyProjectAdminsCanManageAdmins'),
+    })
+    return
+  }
+  
   selected.value = JSON.parse(JSON.stringify(p))
   isManageAdminsOpen.value = true
 }
@@ -402,14 +496,26 @@ const refreshCounts = async () => {
 }
 
 onMounted(async () => {
+  // Check if user is global admin
+  isGlobalAdminValue.value = await isGlobalAdmin()
+  
   const [{ data: projs }, { data: users }, { data: admins }] = await Promise.all([
     supabase.from('projects').select('id, name, admins, commission_rate_min, commission_rate_max, policy').order('name'),
     supabase.from('user_profiles').select('id, email, name'),
-    supabase.from('admins').select('id, email, name')
+    supabase.from('admins').select('id, email, name, role')
   ])
   projects.value = projs || []
   allUsers.value = users || []
   allAdmins.value = admins || []
+  
+  // Pre-check permissions for all projects
+  if (currentAdminId.value) {
+    for (const project of projects.value) {
+      const canManage = await canManageProject(project.id)
+      projectPermissions.value[project.id] = canManage
+    }
+  }
+  
   await refreshCounts()
 })
 </script>
@@ -419,8 +525,19 @@ onMounted(async () => {
     <UCard>
       <template #header>
         <div class="flex items-center justify-between">
-          <h2 class="font-semibold">{{ $t('common.projects') }}</h2>
-          <UButton color="primary" @click="openCreate">{{ $t('projects.newProject') }}</UButton>
+          <div class="flex items-center gap-2">
+            <h2 class="font-semibold">{{ $t('common.projects') }}</h2>
+            <UBadge v-if="isGlobalAdminValue" color="blue" variant="soft">{{ $t('admin.globalAdmin') || 'Global Admin' }}</UBadge>
+            <UBadge v-else color="gray" variant="soft">{{ $t('admin.projectOwner') || 'Project Owner' }}</UBadge>
+          </div>
+          <UButton 
+            color="primary" 
+            @click="openCreate"
+            :disabled="!isGlobalAdminValue"
+            :title="!isGlobalAdminValue ? $t('admin.onlyGlobalAdminsCanCreateProjects') || 'Only global admins can create projects' : ''"
+          >
+            {{ $t('projects.newProject') }}
+          </UButton>
         </div>
       </template>
 
@@ -428,14 +545,22 @@ onMounted(async () => {
         <template #name-data="{ row }">
           <NuxtLink class="text-primary hover:underline" :to="{ name: 'admin-projects-id', params: { id: row.id } }">{{ row.name }}</NuxtLink>
         </template>
+        <template #commissionRate-data="{ row }">
+          <span v-if="row.commission_rate_min != null || row.commission_rate_max != null" class="text-sm">
+            {{ row.commission_rate_min != null ? `${row.commission_rate_min}%` : '' }}
+            <span v-if="row.commission_rate_min != null && row.commission_rate_max != null"> - </span>
+            {{ row.commission_rate_max != null ? `${row.commission_rate_max}%` : '' }}
+          </span>
+          <span v-else class="text-gray-400 text-sm">—</span>
+        </template>
         <template #actions-data="{ row }">
           <div class="flex gap-2">
             <UButton 
               size="xs" 
               color="primary" 
               @click="openManageUsers(row)"
-              :disabled="!isProjectAdmin(row)"
-              :title="!isProjectAdmin(row) ? $t('admin.onlyProjectAdminsCanManageUsers') : ''"
+              :disabled="!canManageProjectSync(row)"
+              :title="!canManageProjectSync(row) ? (isGlobalAdminValue ? $t('admin.onlyGlobalAdminsCanManageUsers') : $t('admin.onlyProjectAdminsCanManageUsers')) : ''"
             >
               {{ $t('projects.addUsers') }}
             </UButton>
@@ -444,8 +569,8 @@ onMounted(async () => {
               color="primary" 
               variant="soft" 
               @click="openManageAdmins(row)"
-              :disabled="!isProjectAdmin(row)"
-              :title="!isProjectAdmin(row) ? $t('admin.onlyProjectAdminsCanManageAdmins') : ''"
+              :disabled="!canManageProjectSync(row)"
+              :title="!canManageProjectSync(row) ? (isGlobalAdminValue ? $t('admin.onlyGlobalAdminsCanManageAdmins') : $t('admin.onlyProjectAdminsCanManageAdmins')) : ''"
             >
               {{ $t('projects.addAdmins') }}
             </UButton>
@@ -454,8 +579,8 @@ onMounted(async () => {
               color="gray" 
               variant="soft" 
               @click="openEdit(row)"
-              :disabled="!isProjectAdmin(row)"
-              :title="!isProjectAdmin(row) ? $t('admin.onlyProjectAdminsCanEdit') : ''"
+              :disabled="!canManageProjectSync(row)"
+              :title="!canManageProjectSync(row) ? (isGlobalAdminValue ? $t('admin.onlyGlobalAdminsCanEdit') : $t('admin.onlyProjectAdminsCanEdit')) : ''"
             >
               {{ $t('common.edit') }}
             </UButton>
@@ -464,8 +589,8 @@ onMounted(async () => {
               color="red" 
               variant="soft" 
               @click="deleteProject(row)"
-              :disabled="!isProjectAdmin(row)"
-              :title="!isProjectAdmin(row) ? $t('admin.onlyProjectAdminsCanDelete') : ''"
+              :disabled="!canManageProjectSync(row) || !isGlobalAdminValue"
+              :title="!isGlobalAdminValue ? $t('admin.onlyGlobalAdminsCanDelete') || 'Only global admins can delete projects' : (!canManageProjectSync(row) ? $t('admin.onlyProjectAdminsCanDelete') : '')"
             >
               {{ $t('common.delete') }}
             </UButton>
@@ -475,35 +600,37 @@ onMounted(async () => {
     </UCard>
 
     <!-- Create -->
-    <UModal v-model="isCreateOpen">
+    <UModal v-model="isCreateOpen" :ui="{ width: 'sm:max-w-2xl' }">
       <UCard>
         <template #header>
           <h3 class="font-semibold">{{ $t('projects.newProject') }}</h3>
         </template>
-        <div class="space-y-4 max-h-[70vh] overflow-y-auto">
+        <div class="space-y-4 max-h-[calc(100vh-250px)] overflow-y-auto pb-4">
           <UFormGroup :label="$t('projects.projectName')">
             <UInput v-model="draft.name" @keyup.enter="createProject" />
           </UFormGroup>
-          <UFormGroup :label="$t('projects.commissionRateMin')">
-            <UInput 
-              v-model.number="(draft as any).commission_rate_min" 
-              type="number" 
-              step="0.01" 
-              min="0" 
-              max="100"
-              :placeholder="$t('projects.commissionRateMinPlaceholder')"
-            />
-          </UFormGroup>
-          <UFormGroup :label="$t('projects.commissionRateMax')">
-            <UInput 
-              v-model.number="(draft as any).commission_rate_max" 
-              type="number" 
-              step="0.01" 
-              min="0" 
-              max="100"
-              :placeholder="$t('projects.commissionRateMaxPlaceholder')"
-            />
-          </UFormGroup>
+          <div class="grid grid-cols-2 gap-4">
+            <UFormGroup :label="$t('projects.commissionRateMin')">
+              <UInput 
+                v-model.number="(draft as any).commission_rate_min" 
+                type="number" 
+                step="0.01" 
+                min="0" 
+                max="100"
+                :placeholder="$t('projects.commissionRateMinPlaceholder')"
+              />
+            </UFormGroup>
+            <UFormGroup :label="$t('projects.commissionRateMax')">
+              <UInput 
+                v-model.number="(draft as any).commission_rate_max" 
+                type="number" 
+                step="0.01" 
+                min="0" 
+                max="100"
+                :placeholder="$t('projects.commissionRateMaxPlaceholder')"
+              />
+            </UFormGroup>
+          </div>
           <UFormGroup :label="$t('projects.policy')">
             <UTextarea 
               v-model="(draft as any).policy" 
@@ -518,7 +645,9 @@ onMounted(async () => {
               :placeholder="$t('projects.selectUsersToAdd')"
               multiple
               searchable
-              class="max-h-48 overflow-y-auto"
+              :ui="{ 
+                option: { container: 'max-h-60 overflow-y-auto' }
+              }"
             />
             <p class="text-xs text-gray-500 mt-1">{{ $t('projects.autoAdminNote') }}</p>
           </UFormGroup>
@@ -629,23 +758,23 @@ onMounted(async () => {
           <div class="flex items-center justify-between">
             <h3 class="font-semibold">{{ $t('projects.manageAdmins') }}</h3>
             <div class="flex items-center gap-2">
-              <USelect 
-                v-model="(manageState as any).addAdmin" 
-                :options="availableAdminOptionsForManage" 
-                :placeholder="$t('projects.selectAdmin')"
-                class="w-48"
-              />
-              <UButton 
-                color="primary" 
-                @click="addAdminToProject" 
-                :disabled="!manageState.addAdmin || (selected?.admins || []).includes(manageState.addAdmin || '')"
-              >
-                {{ $t('common.add') }}
-              </UButton>
-            </div>
+            <USelect 
+              v-model="(manageState as any).addAdmin" 
+              :options="availableAdminOptionsForManage" 
+              :placeholder="$t('projects.selectAdmin')"
+              class="w-48"
+            />
+            <UButton 
+              color="primary" 
+              @click="addAdminToProject" 
+              :disabled="!manageState.addAdmin || (selected?.admins || []).includes(manageState.addAdmin || '')"
+            >
+              {{ $t('common.add') }}
+            </UButton>
           </div>
         </template>
         <div class="space-y-4">
+          <p class="text-xs text-gray-500">{{ $t('admin.onlyProjectOwnersCanBeAdded') }}</p>
           <div v-if="selected?.admins && selected.admins.length > 0" class="flex flex-wrap gap-2">
             <UBadge v-for="uid in selected.admins" :key="uid" color="primary">
               <span class="mr-1">{{ displayAdmin(uid) }}</span>

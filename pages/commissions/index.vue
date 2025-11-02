@@ -10,7 +10,7 @@ const user = useSupabaseUser()
 const isLoading = ref(false)
 const commissions = ref<any[]>([])
 const isModalOpen = ref(false)
-const editDraft = reactive<{ id: string; description: string; contract_amount: number | undefined; currency: string }>({ id: '', description: '', contract_amount: undefined, currency: 'USD' })
+const editDraft = reactive<{ id: string; client_name: string; description: string; contract_amount: number | undefined; currency: string }>({ id: '', client_name: '', description: '', contract_amount: undefined, currency: 'USD' })
 const isCreateOpen = ref(false)
 const selectedYear = ref<number | string>('')
 const selectedMonth = ref<string>('')
@@ -19,6 +19,7 @@ const selectedStatus = ref<string>('')
 
 const form = reactive({
   project_id: '',
+  client_name: '',
   description: '',
   contract_amount: undefined as unknown as number,
   currency: 'USD' as 'USD' | 'VND',
@@ -109,7 +110,7 @@ const fetchCommissions = async () => {
   if (!user.value) return
   const { data } = await supabase
     .from('commissions')
-    .select('id, project_id, description, date, status, value, original_value, currency, contract_amount, commission_rate')
+    .select('id, project_id, client_name, description, date, status, value, original_value, currency, contract_amount, commission_rate')
     .eq('user_id', user.value.id)
     .order('date', { ascending: false })
   commissions.value = data || []
@@ -257,37 +258,64 @@ const formatStatus = (status: string) => {
 const totals = computed(() => {
   const list = commissions.value
   const result = {
-    claimedUSD: 0,
-    claimedVND: 0,
-    approvedButNotClaimedUSD: 0,
-    approvedButNotClaimedVND: 0,
-    requestedUSD: 0,
-    requestedVND: 0,
+    // Total Contract Amount: Sum all contract_amount
+    totalContractAmountUSD: 0,
+    totalContractAmountVND: 0,
+    // Pending Contract Amount: Sum contract_amount of status = requested
+    pendingContractAmountUSD: 0,
+    pendingContractAmountVND: 0,
+    // Received Commission: Sum commission amount (value) of status = paid
+    receivedCommissionUSD: 0,
+    receivedCommissionVND: 0,
+    // Pending Commission: Sum commission amount (value) of status = confirmed
+    pendingCommissionUSD: 0,
+    pendingCommissionVND: 0,
   }
   
   for (const c of list) {
     const currency = c.currency || 'USD'
-    const value = Number(c.value || 0)
+    
+    // Get contract amount (use contract_amount if exists, otherwise original_value, otherwise 0)
+    const contractAmount = c.contract_amount != null ? Number(c.contract_amount || 0) : (c.original_value != null ? Number(c.original_value || 0) : 0)
+    
+    // Get commission amount (value)
+    const commissionAmount = Number(c.value || 0)
     
     if (currency === 'VND') {
-      if (c.status === 'paid') {
-        result.claimedVND += value
-      }
-      if (c.status === 'confirmed') {
-        result.approvedButNotClaimedVND += value
-      }
+      // Total Contract Amount - sum all
+      result.totalContractAmountVND += contractAmount
+      
+      // Pending Contract Amount - status = requested
       if (c.status === 'requested') {
-        result.requestedVND += value
+        result.pendingContractAmountVND += contractAmount
+      }
+      
+      // Received Commission - status = paid
+      if (c.status === 'paid') {
+        result.receivedCommissionVND += commissionAmount
+      }
+      
+      // Pending Commission - status = confirmed
+      if (c.status === 'confirmed') {
+        result.pendingCommissionVND += commissionAmount
       }
     } else {
-      if (c.status === 'paid') {
-        result.claimedUSD += value
-      }
-      if (c.status === 'confirmed') {
-        result.approvedButNotClaimedUSD += value
-      }
+      // Total Contract Amount - sum all
+      result.totalContractAmountUSD += contractAmount
+      
+      // Pending Contract Amount - status = requested
       if (c.status === 'requested') {
-        result.requestedUSD += value
+        result.pendingContractAmountUSD += contractAmount
+      }
+      
+      // Received Commission - status = paid
+      if (c.status === 'paid') {
+        result.receivedCommissionUSD += commissionAmount
+      }
+      
+      // Pending Commission - status = confirmed
+      if (c.status === 'confirmed') {
+        result.pendingCommissionUSD += commissionAmount
       }
     }
   }
@@ -321,6 +349,7 @@ const submit = async () => {
       .insert({
         user_id: user.value.id,
         project_id: form.project_id,
+        client_name: form.client_name || null,
         description: form.description,
         contract_amount: form.contract_amount,
         value: 0, // Will be calculated by admin when setting commission_rate
@@ -330,6 +359,7 @@ const submit = async () => {
       })
     if (error) throw error
     form.project_id = ''
+    form.client_name = ''
     form.description = ''
     ;(form as any).contract_amount = undefined
     form.currency = 'USD'
@@ -343,6 +373,7 @@ const submit = async () => {
 const openEdit = (row: any) => {
   if (row.status === 'confirmed' || row.status === 'paid') return
   editDraft.id = row.id
+  editDraft.client_name = row.client_name || ''
   editDraft.description = row.description
   // Use contract_amount if exists, otherwise use original_value or value
   ;(editDraft as any).contract_amount = row.contract_amount != null ? row.contract_amount : (row.original_value != null ? row.original_value : row.value)
@@ -355,6 +386,7 @@ const saveEdit = async () => {
   if (idx === -1) return
   // When editing requested commission, update contract_amount
   await supabase.from('commissions').update({ 
+    client_name: editDraft.client_name || null,
     description: editDraft.description, 
     contract_amount: editDraft.contract_amount,
     original_value: editDraft.contract_amount, // Store contract_amount as original_value
@@ -362,6 +394,38 @@ const saveEdit = async () => {
   }).eq('id', editDraft.id)
   await fetchCommissions()
   isModalOpen.value = false
+}
+
+const claimCommission = async (row: any) => {
+  if (row.status !== 'confirmed') return
+  try {
+    isLoading.value = true
+    const { error } = await supabase
+      .from('commissions')
+      .update({ status: 'paid' })
+      .eq('id', row.id)
+    
+    if (error) throw error
+    
+    await fetchCommissions()
+    
+    const toast = useToast()
+    toast.add({
+      color: 'green',
+      title: t('messages.success'),
+      description: t('commissions.commissionClaimed') || 'Commission claimed successfully',
+    })
+  } catch (error: any) {
+    console.error('Error claiming commission:', error)
+    const toast = useToast()
+    toast.add({
+      color: 'red',
+      title: t('messages.failedToUpdate'),
+      description: error.message,
+    })
+  } finally {
+    isLoading.value = false
+  }
 }
 </script>
 
@@ -393,7 +457,59 @@ const saveEdit = async () => {
               </div>
             </UCard>
 
-            <!-- Total Received -->
+            <!-- Total Contract Amount -->
+            <UCard class="border border-gray-200 hover:shadow-md transition-shadow">
+              <div class="flex items-start justify-between">
+                <div class="flex-1">
+                  <div class="flex items-center gap-3 mb-3">
+                    <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                      <UIcon name="i-lucide-file-text" class="w-5 h-5 text-blue-600" />
+                    </div>
+                    <span class="text-sm font-medium text-gray-600">{{ $t('commissions.totalContractAmount') }}</span>
+                  </div>
+                  <div class="space-y-1">
+                    <template v-if="totals.totalContractAmountUSD > 0">
+                      <div class="text-3xl font-bold text-gray-900">{{ formatValue(totals.totalContractAmountUSD, 'USD') }}</div>
+                      <div v-if="totals.totalContractAmountVND > 0" class="text-base font-medium text-gray-500">{{ formatValue(totals.totalContractAmountVND, 'VND') }}</div>
+                    </template>
+                    <template v-else-if="totals.totalContractAmountVND > 0">
+                      <div class="text-3xl font-bold text-gray-900">{{ formatValue(totals.totalContractAmountVND, 'VND') }}</div>
+                    </template>
+                    <template v-else>
+                      <div class="text-3xl font-bold text-gray-400">—</div>
+                    </template>
+                  </div>
+                </div>
+              </div>
+            </UCard>
+
+            <!-- Pending Contract Amount -->
+            <UCard class="border border-gray-200 hover:shadow-md transition-shadow">
+              <div class="flex items-start justify-between">
+                <div class="flex-1">
+                  <div class="flex items-center gap-3 mb-3">
+                    <div class="w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center">
+                      <UIcon name="i-lucide-clock" class="w-5 h-5 text-yellow-600" />
+                    </div>
+                    <span class="text-sm font-medium text-gray-600">{{ $t('commissions.pendingContractAmount') }}</span>
+                  </div>
+                  <div class="space-y-1">
+                    <template v-if="totals.pendingContractAmountUSD > 0">
+                      <div class="text-3xl font-bold text-gray-900">{{ formatValue(totals.pendingContractAmountUSD, 'USD') }}</div>
+                      <div v-if="totals.pendingContractAmountVND > 0" class="text-base font-medium text-gray-500">{{ formatValue(totals.pendingContractAmountVND, 'VND') }}</div>
+                    </template>
+                    <template v-else-if="totals.pendingContractAmountVND > 0">
+                      <div class="text-3xl font-bold text-gray-900">{{ formatValue(totals.pendingContractAmountVND, 'VND') }}</div>
+                    </template>
+                    <template v-else>
+                      <div class="text-3xl font-bold text-gray-400">—</div>
+                    </template>
+                  </div>
+                </div>
+              </div>
+            </UCard>
+
+            <!-- Received Commission -->
             <UCard class="border border-gray-200 hover:shadow-md transition-shadow">
               <div class="flex items-start justify-between">
                 <div class="flex-1">
@@ -404,12 +520,12 @@ const saveEdit = async () => {
                     <span class="text-sm font-medium text-gray-600">{{ $t('commissions.receivedCommission') }}</span>
                   </div>
                   <div class="space-y-1">
-                    <template v-if="totals.claimedUSD > 0">
-                      <div class="text-3xl font-bold text-gray-900">{{ formatValue(totals.claimedUSD, 'USD') }}</div>
-                      <div v-if="totals.claimedVND > 0" class="text-base font-medium text-gray-500">{{ formatValue(totals.claimedVND, 'VND') }}</div>
+                    <template v-if="totals.receivedCommissionUSD > 0">
+                      <div class="text-3xl font-bold text-gray-900">{{ formatValue(totals.receivedCommissionUSD, 'USD') }}</div>
+                      <div v-if="totals.receivedCommissionVND > 0" class="text-base font-medium text-gray-500">{{ formatValue(totals.receivedCommissionVND, 'VND') }}</div>
                     </template>
-                    <template v-else-if="totals.claimedVND > 0">
-                      <div class="text-3xl font-bold text-gray-900">{{ formatValue(totals.claimedVND, 'VND') }}</div>
+                    <template v-else-if="totals.receivedCommissionVND > 0">
+                      <div class="text-3xl font-bold text-gray-900">{{ formatValue(totals.receivedCommissionVND, 'VND') }}</div>
                     </template>
                     <template v-else>
                       <div class="text-3xl font-bold text-gray-400">—</div>
@@ -419,7 +535,7 @@ const saveEdit = async () => {
               </div>
             </UCard>
 
-            <!-- Total Not Claimed -->
+            <!-- Pending Commission -->
             <UCard class="border border-gray-200 hover:shadow-md transition-shadow">
               <div class="flex items-start justify-between">
                 <div class="flex-1">
@@ -430,38 +546,12 @@ const saveEdit = async () => {
                     <span class="text-sm font-medium text-gray-600">{{ $t('commissions.pendingCommission') }}</span>
                   </div>
                   <div class="space-y-1">
-                    <template v-if="totals.approvedButNotClaimedUSD > 0">
-                      <div class="text-3xl font-bold text-gray-900">{{ formatValue(totals.approvedButNotClaimedUSD, 'USD') }}</div>
-                      <div v-if="totals.approvedButNotClaimedVND > 0" class="text-base font-medium text-gray-500">{{ formatValue(totals.approvedButNotClaimedVND, 'VND') }}</div>
+                    <template v-if="totals.pendingCommissionUSD > 0">
+                      <div class="text-3xl font-bold text-gray-900">{{ formatValue(totals.pendingCommissionUSD, 'USD') }}</div>
+                      <div v-if="totals.pendingCommissionVND > 0" class="text-base font-medium text-gray-500">{{ formatValue(totals.pendingCommissionVND, 'VND') }}</div>
                     </template>
-                    <template v-else-if="totals.approvedButNotClaimedVND > 0">
-                      <div class="text-3xl font-bold text-gray-900">{{ formatValue(totals.approvedButNotClaimedVND, 'VND') }}</div>
-                    </template>
-                    <template v-else>
-                      <div class="text-3xl font-bold text-gray-400">—</div>
-                    </template>
-                  </div>
-                </div>
-              </div>
-            </UCard>
-
-            <!-- Total Requested -->
-            <UCard class="border border-gray-200 hover:shadow-md transition-shadow">
-              <div class="flex items-start justify-between">
-                <div class="flex-1">
-                  <div class="flex items-center gap-3 mb-3">
-                    <div class="w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center">
-                      <UIcon name="i-lucide-clock" class="w-5 h-5 text-yellow-600" />
-                    </div>
-                    <span class="text-sm font-medium text-gray-600">{{ $t('commissions.totalRequested') }}</span>
-                  </div>
-                  <div class="space-y-1">
-                    <template v-if="totals.requestedUSD > 0">
-                      <div class="text-3xl font-bold text-gray-900">{{ formatValue(totals.requestedUSD, 'USD') }}</div>
-                      <div v-if="totals.requestedVND > 0" class="text-base font-medium text-gray-500">{{ formatValue(totals.requestedVND, 'VND') }}</div>
-                    </template>
-                    <template v-else-if="totals.requestedVND > 0">
-                      <div class="text-3xl font-bold text-gray-900">{{ formatValue(totals.requestedVND, 'VND') }}</div>
+                    <template v-else-if="totals.pendingCommissionVND > 0">
+                      <div class="text-3xl font-bold text-gray-900">{{ formatValue(totals.pendingCommissionVND, 'VND') }}</div>
                     </template>
                     <template v-else>
                       <div class="text-3xl font-bold text-gray-400">—</div>
@@ -497,9 +587,11 @@ const saveEdit = async () => {
           <UTable :rows="filteredCommissions" :columns="[
             { key: 'date', label: $t('common.date') },
             { key: 'project_id', label: $t('common.project') },
+            { key: 'client_name', label: $t('commissions.clientName') },
             { key: 'description', label: $t('common.description') },
             { key: 'value', label: $t('commissions.contractAmount') },
-            { key: 'commission_received', label: $t('commissions.commissionReceived') },
+            { key: 'commission_rate', label: $t('commissions.commissionRate') },
+            { key: 'commission_received', label: $t('commissions.commissionAmount') },
             { key: 'status', label: $t('common.status') },
             { key: 'actions', label: $t('common.actions') },
           ]">
@@ -509,11 +601,17 @@ const saveEdit = async () => {
             <template #project_id-data="{ row }">
               <span>{{ getProjectLabel(row.project_id) }}</span>
             </template>
+            <template #client_name-data="{ row }">
+              <span>{{ row.client_name || '—' }}</span>
+            </template>
             <template #description-data="{ row }">
               <span>{{ row.description || 'Failed to get cell value' }}</span>
             </template>
             <template #value-data="{ row }">
               <span>{{ formatValue(row.contract_amount != null ? row.contract_amount : getOriginalValue(row), row.currency) }}</span>
+            </template>
+            <template #commission_rate-data="{ row }">
+              <span>{{ row.commission_rate != null ? `${row.commission_rate}%` : '—' }}</span>
             </template>
             <template #commission_received-data="{ row }">
               <span>{{ formatValue(getCommissionReceived(row), row.currency) }}</span>
@@ -523,8 +621,16 @@ const saveEdit = async () => {
             </template>
             <template #actions-data="{ row }">
               <UButton v-if="row.status === 'requested'" color="gray" size="xs" @click="openEdit(row)">{{ $t('commissions.edit') }}</UButton>
-              <UButton v-else-if="row.status === 'confirmed'" color="primary" size="xs" @click="async () => { await supabase.from('commissions').update({ status: 'paid' }).eq('id', row.id); await fetchCommissions() }">{{ $t('commissions.claim') }}</UButton>
-              <div v-else>{{ $t('common.noData') }}</div>
+              <UButton 
+                v-else-if="row.status === 'confirmed'" 
+                color="primary" 
+                size="xs" 
+                @click="claimCommission(row)"
+                :disabled="isLoading"
+              >
+                {{ $t('commissions.claim') }}
+              </UButton>
+              <span v-else class="text-xs text-gray-400">—</span>
             </template>
           </UTable>
         </div>
@@ -535,6 +641,9 @@ const saveEdit = async () => {
               <h3 class="font-semibold">{{ $t('commissions.editCommission') }}</h3>
             </template>
             <div class="space-y-4">
+              <UFormGroup :label="$t('commissions.clientName')">
+                <UInput v-model="editDraft.client_name" :placeholder="$t('commissions.clientNamePlaceholder')" />
+              </UFormGroup>
               <UFormGroup :label="$t('common.description')">
                 <UTextarea v-model="editDraft.description" />
               </UFormGroup>
@@ -568,6 +677,9 @@ const saveEdit = async () => {
             <div class="space-y-4">
               <UFormGroup :label="$t('common.project')">
                 <USelect v-model="form.project_id" :options="projects.map(p => ({ label: p.name || p.id, value: p.id }))" />
+              </UFormGroup>
+              <UFormGroup :label="$t('commissions.clientName')">
+                <UInput v-model="form.client_name" :placeholder="$t('commissions.clientNamePlaceholder')" @keyup.enter="submit" />
               </UFormGroup>
               <UFormGroup :label="$t('common.description')">
                 <UTextarea v-model="form.description" />

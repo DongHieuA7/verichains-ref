@@ -26,9 +26,12 @@
     "users": "Users",
     "admins": "Admins",
     "commissions": "Commissions",
+    "user": "User",
+    "loading": "Loading...",
     "joined": "Joined",
     "noData": "—",
-    "all": "All"
+    "all": "All",
+    "readOnly": "Read-only"
   },
   "nav": {
     "myProfile": "My Profile",
@@ -36,6 +39,7 @@
     "myCommissions": "My Commissions",
     "adminProjects": "Projects",
     "adminUsers": "Users",
+    "adminCommissions": "Commissions",
     "adminAdmins": "Admins"
   },
   "projects": {
@@ -77,6 +81,7 @@
     "reject": "Reject",
     "requestSubmitted": "Request submitted",
     "requestSubmittedDescription": "Your join request has been submitted and is pending approval.",
+    "messageOptional": "Optional message explaining why you want to join this project",
     "commissionRateMin": "Commission Rate Min (%)",
     "commissionRateMax": "Commission Rate Max (%)",
     "commissionRateMinPlaceholder": "e.g. 5.0",
@@ -84,7 +89,8 @@
     "policy": "Policy",
     "policyPlaceholder": "Enter policy details here...",
     "commissionRateRange": "Commission Rate",
-    "viewPolicy": "View Policy"
+    "viewPolicy": "View Policy",
+    "editPolicy": "Edit Policy"
   },
   "commissions": {
     "myCommissionRequests": "My Commission Requests",
@@ -110,7 +116,12 @@
     "claimed": "Claimed",
     "contractAmount": "Contract Amount",
     "commissionRate": "Commission Rate (%)",
-    "commissionAmount": "Commission Amount"
+    "commissionAmount": "Commission Amount",
+    "clientName": "Client Name",
+    "clientNamePlaceholder": "Enter client name",
+    "totalContractAmount": "Total Contract Amount",
+    "pendingContractAmount": "Pending Contract Amount",
+    "commissionClaimed": "Commission claimed successfully"
   },
   "users": {
     "inviteUser": "Invite User",
@@ -151,6 +162,20 @@
     "onlyProjectAdminsCanApproveRequests": "Only project admins can approve requests",
     "onlyProjectAdminsCanRejectRequests": "Only project admins can reject requests",
     "onlyProjectAdminsCanApproveCommissions": "Only project admins can approve commissions",
+    "globalAdmin": "Global Admin",
+    "projectOwner": "Project Owner",
+    "onlyGlobalAdminsCanCreateProjects": "Only global admins can create projects",
+    "allCommissions": "All Commissions",
+    "onlyGlobalAdminsCanDelete": "Only global admins can delete projects",
+    "onlyGlobalAdminsCanEdit": "Only global admins can edit projects",
+    "onlyGlobalAdminsCanAddUsers": "Only global admins can add users",
+    "onlyGlobalAdminsCanAddAdmins": "Only global admins can add admins",
+    "onlyGlobalAdminsCanRemoveAdmins": "Only global admins can remove admins",
+    "onlyGlobalAdminsCanManageUsers": "Only global admins can manage users",
+    "onlyGlobalAdminsCanManageAdmins": "Only global admins can manage admins",
+    "cannotAddGlobalAdmin": "Cannot add Global Admin",
+    "globalAdminMustBeSetManually": "Global admins can only be set manually in the database, not through the UI",
+    "onlyProjectOwnersCanBeAdded": "Note: Only Project Owners can be added to projects.",
     "manage": "manage",
     "add": "add",
     "remove": "remove",
@@ -165,7 +190,9 @@
     "failedToAddUser": "Failed to add user",
     "failedToAddAdmin": "Failed to add admin",
     "failedToCreateProject": "Failed to create project",
-    "userMustBeLoggedIn": "You must be logged in as admin to create a project"
+    "failedToUpdate": "Failed to update",
+    "userMustBeLoggedIn": "You must be logged in as admin to create a project",
+    "success": "Saved successfully"
   },
   "profile": {
     "myProfile": "My Profile",

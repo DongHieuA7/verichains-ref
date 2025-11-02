@@ -221,22 +221,42 @@ onMounted(async () => {
               <UInput 
                 :value="projects.find(p => p.id === selectedProject)?.name || ''" 
                 disabled 
-              />
-            </UFormGroup>
-            <!-- Show Commission Rate Range (read-only) -->
-            <UFormGroup v-if="selectedProjectData && (selectedProjectData.commission_rate_min != null || selectedProjectData.commission_rate_max != null)" :label="$t('projects.commissionRateRange')">
-              <UInput 
-                :value="`${selectedProjectData.commission_rate_min != null ? selectedProjectData.commission_rate_min : ''}${selectedProjectData.commission_rate_min != null && selectedProjectData.commission_rate_max != null ? ' - ' : ''}${selectedProjectData.commission_rate_max != null ? selectedProjectData.commission_rate_max : ''}%`"
-                disabled
                 class="bg-gray-50"
               />
             </UFormGroup>
+            
+            <!-- Show Commission Rate Range (read-only) -->
+            <UFormGroup v-if="selectedProjectData && (selectedProjectData.commission_rate_min != null || selectedProjectData.commission_rate_max != null)" :label="$t('projects.commissionRateRange')">
+              <div class="flex items-center gap-2">
+                <UInput 
+                  :value="`${selectedProjectData.commission_rate_min != null ? selectedProjectData.commission_rate_min : ''}${selectedProjectData.commission_rate_min != null && selectedProjectData.commission_rate_max != null ? ' - ' : ''}${selectedProjectData.commission_rate_max != null ? selectedProjectData.commission_rate_max : ''}%`"
+                  disabled
+                  class="bg-gray-50 flex-1"
+                />
+                <span class="text-xs text-gray-500">({{ $t('common.readOnly') || 'Read-only' }})</span>
+              </div>
+            </UFormGroup>
+            
+            <!-- Show Policy link if exists -->
+            <div v-if="selectedProjectData?.policy" class="text-sm">
+              <UButton 
+                color="gray" 
+                variant="soft" 
+                size="xs"
+                @click="() => { isRequestOpen = false; openPolicyModal(selectedProjectData); }"
+                class="w-full"
+              >
+                {{ $t('projects.viewPolicy') }}
+              </UButton>
+            </div>
+            
             <UFormGroup :label="$t('projects.message')">
               <UTextarea 
                 v-model="requestForm.message" 
                 :placeholder="$t('projects.whyJoin')"
                 :rows="3"
               />
+              <p class="text-xs text-gray-500 mt-1">{{ $t('projects.messageOptional') || 'Optional message explaining why you want to join this project' }}</p>
             </UFormGroup>
           </div>
         <template #footer>

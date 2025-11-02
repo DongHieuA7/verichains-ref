@@ -2,13 +2,117 @@
 const { t } = useI18n()
 
 definePageMeta({ middleware: ['auth','admin'] })
-useSeoMeta({ title: 'Admin - Commissions' })
+useSeoMeta({ title: t('admin.allCommissions') || 'Admin - Commissions' })
 
 const supabase = useSupabaseClient()
-const isLoading = ref(false)
-const rows = ref<any[]>([])
+const user = useSupabaseUser()
+const { isGlobalAdmin } = useAdminRole()
 
-// Format status display with capital first letter
+const isLoading = ref(false)
+const commissions = ref<any[]>([])
+const projects = ref<any[]>([])
+const allUsers = ref<any[]>([])
+
+// Filters
+const selectedProject = ref<string>('')
+const selectedStatus = ref<string>('')
+const selectedYear = ref<number | string>(new Date().getFullYear())
+const selectedMonth = ref<string>('')
+
+// Edit modal
+const isEditOpen = ref(false)
+const editDraft = reactive<{
+  id: string
+  contract_amount: number | null
+  commission_rate: number | null
+  status: string
+  client_name: string
+  description: string
+}>({
+  id: '',
+  contract_amount: null,
+  commission_rate: null,
+  status: 'requested',
+  client_name: '',
+  description: '',
+})
+
+// Fetch all commissions
+const fetchCommissions = async () => {
+  isLoading.value = true
+  try {
+    const { data, error } = await supabase
+      .from('commissions')
+      .select('id, user_id, project_id, client_name, description, date, status, value, original_value, currency, contract_amount, commission_rate')
+      .order('date', { ascending: false })
+    
+    if (error) {
+      console.error('Error fetching commissions:', error)
+      return
+    }
+    
+    commissions.value = data || []
+  } finally {
+    isLoading.value = false
+  }
+}
+
+// Fetch projects
+const fetchProjects = async () => {
+  const { data } = await supabase
+    .from('projects')
+    .select('id, name')
+    .order('name')
+  
+  projects.value = data || []
+}
+
+// Fetch users
+const fetchUsers = async () => {
+  const { data } = await supabase
+    .from('user_profiles')
+    .select('id, email, name')
+    .order('name')
+  
+  allUsers.value = data || []
+}
+
+// Get project name
+const getProjectName = (projectId: string) => {
+  return projects.value.find(p => p.id === projectId)?.name || projectId
+}
+
+// Get user name/email
+const getUserName = (userId: string) => {
+  const u = allUsers.value.find(u => u.id === userId)
+  return u ? (u.name || u.email) : userId
+}
+
+// Format date
+const formatDate = (input: string) => {
+  const d = new Date(input)
+  if (isNaN(d.getTime())) return input
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+}
+
+// Format value
+const formatValue = (value: number | string | null | undefined, currency: string = 'USD') => {
+  if (value == null || value === '' || value === undefined) return '—'
+  const numValue = typeof value === 'string' ? parseFloat(value) : value
+  if (isNaN(numValue)) return '—'
+  
+  const currencySymbol = currency === 'VND' ? '₫' : '$'
+  const locale = currency === 'VND' ? 'vi-VN' : 'en-US'
+  const formatted = numValue.toLocaleString(locale, { 
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0 
+  })
+  
+  return currency === 'VND' ? `${formatted} ${currencySymbol}` : `${currencySymbol}${formatted}`
+}
+
+// Format status
 const formatStatus = (status: string) => {
   const statusMap: Record<string, string> = {
     'requested': t('commissions.requested'),
@@ -19,116 +123,365 @@ const formatStatus = (status: string) => {
   return statusText.charAt(0).toUpperCase() + statusText.slice(1)
 }
 
-const fetchAll = async () => {
-  const { data } = await supabase
-    .from('commissions')
-    .select('id, user_id, project_id, description, date, status, value, contract_amount, commission_rate, currency')
-    .order('date', { ascending: false })
-  rows.value = data || []
+// Status color
+const statusColor = (status: string) => {
+  switch (status) {
+    case 'requested':
+      return 'yellow'
+    case 'confirmed':
+      return 'blue'
+    case 'paid':
+      return 'green'
+    default:
+      return 'gray'
+  }
 }
 
-onMounted(fetchAll)
-
-const statuses = ['requested','confirmed','paid']
-
-const save = async (row: any) => {
-  // Calculate value if contract_amount and commission_rate are provided
-  let calculatedValue = row.value
-  if (row.contract_amount != null && row.commission_rate != null) {
-    calculatedValue = Number(row.contract_amount || 0) * (Number(row.commission_rate || 0) / 100)
+// Filtered commissions
+const filteredCommissions = computed(() => {
+  let filtered = commissions.value
+  
+  if (selectedProject.value) {
+    filtered = filtered.filter(c => c.project_id === selectedProject.value)
   }
   
-  await supabase
-    .from('commissions')
-    .update({ 
-      status: row.status, 
-      value: calculatedValue,
-      contract_amount: row.contract_amount || null,
-      commission_rate: row.commission_rate || null,
-      original_value: row.original_value || calculatedValue
-    })
-    .eq('id', row.id)
+  if (selectedStatus.value) {
+    filtered = filtered.filter(c => c.status === selectedStatus.value)
+  }
   
-  // Update local value for immediate display
-  row.value = calculatedValue
+  if (selectedYear.value) {
+    filtered = filtered.filter(c => (c.date || '').slice(0,4) === String(selectedYear.value))
+  }
+  
+  if (selectedMonth.value) {
+    filtered = filtered.filter(c => (c.date || '').slice(0,7) === selectedMonth.value)
+  }
+  
+  return filtered
+})
+
+// Year options
+const yearOptions = computed(() => {
+  const current = new Date().getFullYear()
+  const years: { label: string, value: number | string }[] = [
+    { label: t('common.all'), value: '' }
+  ]
+  for (let y = current; y >= current - 4; y--) {
+    years.push({ label: String(y), value: y })
+  }
+  return years
+})
+
+// Month options
+const monthOptions = computed(() => {
+  const options: { label: string, value: string }[] = [
+    { label: t('commissions.allMonths'), value: '' }
+  ]
+  if (selectedYear.value) {
+    for (let m = 1; m <= 12; m++) {
+      const value = `${selectedYear.value}-${String(m).padStart(2,'0')}`
+      const label = new Date(`${selectedYear.value}-${String(m).padStart(2,'0')}-01`).toLocaleString(undefined, { month: 'long'})
+      options.push({ label, value })
+    }
+  }
+  return options
+})
+
+// Status options
+const statusOptions = computed(() => [
+  { label: t('common.all'), value: '' },
+  { label: capitalize(t('commissions.requested')), value: 'requested' },
+  { label: capitalize(t('commissions.confirmed')), value: 'confirmed' },
+  { label: capitalize(t('commissions.paid')), value: 'paid' },
+])
+
+// Project options
+const projectOptions = computed(() => [
+  { label: t('common.all'), value: '' },
+  ...projects.value.map(p => ({ label: p.name || p.id, value: p.id }))
+])
+
+// Capitalize helper
+const capitalize = (str: string) => {
+  return str.charAt(0).toUpperCase() + str.slice(1)
 }
 
-const confirm = async (row: any) => {
-  if (row.status !== 'requested') return
+// Open edit modal
+const openEdit = (row: any) => {
+  editDraft.id = row.id
+  editDraft.contract_amount = row.contract_amount != null ? Number(row.contract_amount) : null
+  editDraft.commission_rate = row.commission_rate != null ? Number(row.commission_rate) : null
+  editDraft.status = row.status
+  editDraft.client_name = row.client_name || ''
+  editDraft.description = row.description || ''
+  isEditOpen.value = true
+}
+
+// Calculate commission amount
+const calculateCommissionAmount = () => {
+  if (editDraft.contract_amount != null && editDraft.commission_rate != null) {
+    return Number(editDraft.contract_amount || 0) * (Number(editDraft.commission_rate || 0) / 100)
+  }
+  return 0
+}
+
+// Save commission
+const saveCommission = async () => {
+  if (!editDraft.id) return
   
-  // Calculate commission amount from contract_amount and commission_rate
-  let calculatedValue = row.value
-  if (row.contract_amount != null && row.commission_rate != null) {
-    calculatedValue = Number(row.contract_amount || 0) * (Number(row.commission_rate || 0) / 100)
-  } else {
-    // Fallback: Get ref_percentage from user_project_info
-    const { data: refData } = await supabase
-      .from('user_project_info')
-      .select('ref_percentage')
-      .eq('user_id', row.user_id)
-      .eq('project_id', row.project_id)
-      .single()
+  isLoading.value = true
+  try {
+    // Calculate commission amount if both contract_amount and commission_rate are provided
+    const calculatedValue = calculateCommissionAmount()
     
-    const refPercentage = refData?.ref_percentage || 0
-    const currentOriginalValue = row.original_value != null ? Number(row.original_value || 0) : Number(row.value || 0)
-    calculatedValue = currentOriginalValue * (refPercentage / 100)
+    const updateData: any = {
+      client_name: editDraft.client_name || null,
+      description: editDraft.description || null,
+      contract_amount: editDraft.contract_amount || null,
+      commission_rate: editDraft.commission_rate || null,
+      status: editDraft.status,
+      original_value: editDraft.contract_amount || null, // Store contract_amount as original_value
+    }
+    
+    // Only update value if we can calculate it (both contract_amount and commission_rate are provided)
+    if (calculatedValue > 0 && editDraft.contract_amount != null && editDraft.commission_rate != null) {
+      updateData.value = calculatedValue
+    }
+    
+    const { error } = await supabase
+      .from('commissions')
+      .update(updateData)
+      .eq('id', editDraft.id)
+    
+    if (error) throw error
+    
+    await fetchCommissions()
+    isEditOpen.value = false
+    
+    const toast = useToast()
+    toast.add({
+      color: 'green',
+      title: t('common.save'),
+      description: t('messages.success'),
+    })
+  } catch (error: any) {
+    console.error('Error updating commission:', error)
+    const toast = useToast()
+    toast.add({
+      color: 'red',
+      title: t('messages.failedToUpdate'),
+      description: error.message,
+    })
+  } finally {
+    isLoading.value = false
   }
-  
-  row.status = 'confirmed'
-  row.value = calculatedValue
-  row.original_value = row.contract_amount != null ? row.contract_amount : (row.original_value || row.value)
-  await save(row)
 }
+
+onMounted(async () => {
+  await Promise.all([
+    fetchCommissions(),
+    fetchProjects(),
+    fetchUsers(),
+  ])
+  
+  // Set default to current month/year
+  const now = new Date()
+  selectedYear.value = now.getFullYear()
+  selectedMonth.value = `${selectedYear.value}-${String(now.getMonth() + 1).padStart(2, '0')}`
+})
 </script>
 
 <template>
   <div class="container mx-auto py-6">
     <UCard>
       <template #header>
-        <h2 class="font-semibold">All Commissions</h2>
+        <div class="flex items-center justify-between">
+          <h2 class="font-semibold">{{ $t('admin.allCommissions') || 'All Commissions' }}</h2>
+          <div class="flex items-center gap-3">
+            <span class="text-sm text-gray-500">{{ $t('common.filter') }}</span>
+            <USelect 
+              v-model="selectedProject" 
+              :options="projectOptions" 
+              :placeholder="$t('common.project')"
+              class="min-w-[150px]"
+            />
+            <USelect 
+              v-model="selectedStatus" 
+              :options="statusOptions" 
+              :placeholder="$t('common.status')"
+              class="min-w-[120px]"
+            />
+            <USelect 
+              v-model="selectedYear" 
+              :options="yearOptions" 
+              :placeholder="$t('common.year')"
+              class="min-w-[100px]"
+            />
+            <USelect 
+              v-model="selectedMonth" 
+              :options="monthOptions" 
+              :placeholder="$t('common.month')"
+              class="min-w-[150px]"
+              :disabled="!selectedYear"
+            />
+          </div>
+        </div>
       </template>
-      <UTable :rows="rows" :columns="[
-        { key: 'date', label: 'Date' },
-        { key: 'user_id', label: 'User' },
-        { key: 'project_id', label: 'Project' },
-        { key: 'description', label: 'Description' },
-        { key: 'contract_amount', label: 'Contract Amount' },
-        { key: 'commission_rate', label: 'Commission Rate (%)' },
-        { key: 'value', label: 'Commission Amount' },
-        { key: 'status', label: 'Status' },
-        { key: 'actions', label: 'Actions' },
-      ]">
+
+      <div v-if="isLoading" class="text-center py-8">
+        <div class="text-gray-500">{{ $t('common.loading') || 'Loading...' }}</div>
+      </div>
+
+      <div v-else-if="filteredCommissions.length === 0" class="text-center py-8 text-gray-500">
+        {{ $t('commissions.noCommissions') }}
+      </div>
+
+      <UTable 
+        v-else
+        :rows="filteredCommissions" 
+        :columns="[
+          { key: 'date', label: $t('common.date') },
+          { key: 'user_id', label: $t('common.user') },
+          { key: 'project_id', label: $t('common.project') },
+          { key: 'client_name', label: $t('commissions.clientName') },
+          { key: 'description', label: $t('common.description') },
+          { key: 'contract_amount', label: $t('commissions.contractAmount') },
+          { key: 'commission_rate', label: $t('commissions.commissionRate') },
+          { key: 'value', label: $t('commissions.commissionAmount') },
+          { key: 'status', label: $t('common.status') },
+          { key: 'actions', label: $t('common.actions') },
+        ]"
+      >
+        <template #date-data="{ row }">
+          <span>{{ formatDate(row.date) }}</span>
+        </template>
+        <template #user_id-data="{ row }">
+          <NuxtLink 
+            class="text-primary hover:underline" 
+            :to="`/admin/users/${row.user_id}`"
+          >
+            {{ getUserName(row.user_id) }}
+          </NuxtLink>
+        </template>
+        <template #project_id-data="{ row }">
+          <NuxtLink 
+            class="text-primary hover:underline" 
+            :to="`/admin/projects/${row.project_id}`"
+          >
+            {{ getProjectName(row.project_id) }}
+          </NuxtLink>
+        </template>
+        <template #client_name-data="{ row }">
+          <span>{{ row.client_name || '—' }}</span>
+        </template>
+        <template #description-data="{ row }">
+          <span class="max-w-xs truncate block" :title="row.description">{{ row.description || '—' }}</span>
+        </template>
         <template #contract_amount-data="{ row }">
-          <UInput v-model.number="row.contract_amount" type="number" step="0.01" @blur="save(row)" placeholder="Contract amount" />
+          <span>{{ formatValue(row.contract_amount != null ? row.contract_amount : row.original_value, row.currency) }}</span>
         </template>
         <template #commission_rate-data="{ row }">
-          <UInput v-model.number="row.commission_rate" type="number" step="0.01" min="0" max="100" @blur="save(row)" placeholder="Rate %" />
+          <span>{{ row.commission_rate != null ? `${row.commission_rate}%` : '—' }}</span>
         </template>
         <template #value-data="{ row }">
-          <UInput v-model.number="row.value" type="number" step="0.01" disabled class="bg-gray-50" />
+          <span>{{ formatValue(row.value, row.currency) }}</span>
         </template>
         <template #status-data="{ row }">
-          <USelect 
-            v-model="row.status"
-            :options="[
-              { label: 'Requested', value: 'requested' },
-              { label: 'Confirmed', value: 'confirmed' },
-              { label: 'Paid', value: 'paid' }
-            ]"
-            @change="save(row)"
+          <UBadge 
+            :label="formatStatus(row.status || 'unknown')" 
+            :color="statusColor(row.status)" 
+            variant="soft" 
           />
         </template>
         <template #actions-data="{ row }">
-          <UButton v-if="row.status === 'requested'" size="xs" color="gray" @click="confirm(row)">Confirm</UButton>
-          <span v-else class="text-xs text-gray-400">—</span>
+          <UButton 
+            size="xs" 
+            color="gray" 
+            @click="openEdit(row)"
+          >
+            {{ $t('common.edit') }}
+          </UButton>
         </template>
       </UTable>
     </UCard>
+
+    <!-- Edit Commission Modal -->
+    <UModal v-model="isEditOpen">
+      <UCard>
+        <template #header>
+          <h3 class="font-semibold">{{ $t('commissions.editCommission') }}</h3>
+        </template>
+        <div class="space-y-4">
+          <UFormGroup :label="$t('commissions.clientName')">
+            <UInput 
+              v-model="editDraft.client_name" 
+              :placeholder="$t('commissions.clientNamePlaceholder')" 
+            />
+          </UFormGroup>
+          
+          <UFormGroup :label="$t('common.description')">
+            <UTextarea 
+              v-model="editDraft.description" 
+              :rows="3"
+            />
+          </UFormGroup>
+          
+          <UFormGroup :label="$t('commissions.contractAmount')">
+            <UInput 
+              v-model.number="editDraft.contract_amount" 
+              type="number" 
+              step="0.01"
+              :placeholder="$t('commissions.contractAmount')"
+            />
+          </UFormGroup>
+          
+          <UFormGroup :label="$t('commissions.commissionRate')">
+            <UInput 
+              v-model.number="editDraft.commission_rate" 
+              type="number" 
+              step="0.01" 
+              min="0" 
+              max="100"
+              :placeholder="$t('commissions.commissionRate')"
+            />
+            <template #help>
+              <span class="text-xs text-gray-500">
+                {{ $t('commissions.commissionAmount') }}: {{ formatValue(calculateCommissionAmount(), 'USD') }}
+              </span>
+            </template>
+          </UFormGroup>
+          
+          <UFormGroup :label="$t('common.status')">
+            <USelect 
+              v-model="editDraft.status"
+              :options="[
+                { label: capitalize($t('commissions.requested')), value: 'requested' },
+                { label: capitalize($t('commissions.confirmed')), value: 'confirmed' },
+                { label: capitalize($t('commissions.paid')), value: 'paid' },
+              ]"
+            />
+          </UFormGroup>
+        </div>
+        <template #footer>
+          <div class="flex justify-end gap-2">
+            <UButton 
+              color="gray" 
+              variant="soft" 
+              @click="isEditOpen = false"
+            >
+              {{ $t('common.cancel') }}
+            </UButton>
+            <UButton 
+              color="primary" 
+              @click="saveCommission"
+            >
+              {{ $t('common.save') }}
+            </UButton>
+          </div>
+        </template>
+      </UCard>
+    </UModal>
   </div>
 </template>
 
 <style scoped></style>
-
-
-
-

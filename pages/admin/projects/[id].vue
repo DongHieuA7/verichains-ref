@@ -9,14 +9,18 @@ const supabase = useSupabaseClient()
 const user = useSupabaseUser()
 const projectId = computed(() => route.params.id as string)
 const currentAdminId = computed(() => user.value?.id || '')
+const { isGlobalAdmin, canManageProject } = useAdminRole()
 
 // Project data
-const project = ref<{ id: string, name: string, admins: string[] } | null>(null)
+const project = ref<{ id: string, name: string, admins: string[], commission_rate_min?: number | null, commission_rate_max?: number | null, policy?: string | null } | null>(null)
 
-// Check if current user is admin of this project
+// Role states
+const isGlobalAdminValue = ref(false)
+const canManageProjectValue = ref(false)
+
+// Check if current user can manage this project
 const isProjectAdmin = computed(() => {
-  if (!project.value || !currentAdminId.value) return false
-  return (project.value.admins || []).includes(currentAdminId.value)
+  return canManageProjectValue.value
 })
 
 // All users from user_profiles
@@ -24,7 +28,7 @@ const allUsers = ref<any[]>([])
 // All admins from admins table
 const allAdmins = ref<any[]>([])
 
-type Commission = { id: string, user_id: string, project_id: string, description: string, date: string, status: 'requested'|'confirmed'|'paid', value: number, original_value?: number | null, currency?: string, contract_amount?: number | null, commission_rate?: number | null }
+type Commission = { id: string, user_id: string, project_id: string, client_name?: string | null, description: string, date: string, status: 'requested'|'confirmed'|'paid', value: number, original_value?: number | null, currency?: string, contract_amount?: number | null, commission_rate?: number | null }
 
 type JoinRequest = { 
   id: string, 
@@ -133,7 +137,7 @@ const toggleExpand = (uid: string) => {
 const fetchProject = async () => {
   const { data, error } = await supabase
     .from('projects')
-    .select('id, name, admins')
+    .select('id, name, admins, commission_rate_min, commission_rate_max, policy')
     .eq('id', projectId.value)
     .single()
   
@@ -188,7 +192,7 @@ const fetchAllUsers = async () => {
 const fetchAllAdmins = async () => {
   const { data, error } = await supabase
     .from('admins')
-    .select('id, email, name, created_at')
+    .select('id, email, name, created_at, role')
     .order('created_at', { ascending: false })
   
   if (error) {
@@ -203,7 +207,7 @@ const fetchAllAdmins = async () => {
 const fetchCommissions = async () => {
   const { data, error } = await supabase
     .from('commissions')
-    .select('id, user_id, project_id, description, date, status, value, original_value, currency, contract_amount, commission_rate')
+    .select('id, user_id, project_id, client_name, description, date, status, value, original_value, currency, contract_amount, commission_rate')
     .eq('project_id', projectId.value)
     .order('date', { ascending: false })
   
@@ -216,6 +220,7 @@ const fetchCommissions = async () => {
     id: c.id,
     user_id: c.user_id,
     project_id: c.project_id,
+    client_name: c.client_name || null,
     description: c.description || '',
     date: c.date,
     status: c.status,
@@ -419,11 +424,22 @@ const availableUserOptions = computed(() => {
     .filter(u => !set.has(u.id))
     .map(u => ({ label: u.name || u.email, value: u.id }))
 })
+// Filter out admins already in project and global admins
+// Only project owners can be added to projects
 const availableAdminOptions = computed(() => {
   const set = new Set(adminsInProject.value)
   return allAdmins.value
-    .filter(a => !set.has(a.id))
-    .map(a => ({ label: a.name || a.email, value: a.id }))
+    .filter(a => {
+      // Exclude if already in project
+      if (set.has(a.id)) return false
+      // Exclude global admins (only allow project_owner or null role)
+      // Global admins must be set manually in database
+      return a.role !== 'global_admin'
+    })
+    .map(a => ({ 
+      label: `${a.name || a.email}${a.role ? ` (${a.role === 'project_owner' ? 'Project Owner' : a.role})` : ''}`, 
+      value: a.id 
+    }))
 })
 
 const removeUser = async (uid: string) => {
@@ -494,6 +510,10 @@ const adminLabel = (uid: string) => {
 }
 
 onMounted(async () => {
+  // Check roles
+  isGlobalAdminValue.value = await isGlobalAdmin()
+  canManageProjectValue.value = await canManageProject(projectId.value)
+  
   await Promise.all([
     fetchProject(),
     fetchAllUsers(),
@@ -502,6 +522,11 @@ onMounted(async () => {
     fetchCommissions(),
     fetchJoinRequests(),
   ])
+  
+  // Re-check after project is loaded
+  if (project.value) {
+    canManageProjectValue.value = await canManageProject(projectId.value)
+  }
   
   // Set default to current month/year
   const now = new Date()
@@ -514,9 +539,11 @@ const isEditRefOpen = ref(false)
 const isAddUserOpen = ref(false)
 const isAddAdminOpen = ref(false)
 const isEditRequestOpen = ref(false)
+const isEditPolicyOpen = ref(false)
 const manageState = reactive<{ addUser?: string, addAdmin?: string }>({})
 const editRef = reactive<{ uid: string, value: number | null }>({ uid: '', value: null })
 const editRequest = reactive<{ id: string, ref_percentage: number | null }>({ id: '', ref_percentage: null })
+const editPolicy = reactive<{ policy: string }>({ policy: '' })
 const openEditRequest = (request: JoinRequest) => {
   editRequest.id = request.id
   editRequest.ref_percentage = request.ref_percentage || 10
@@ -589,6 +616,53 @@ const saveEditRef = async () => {
   userRefInfo.value[editRef.uid].ref_percentage = v
   isEditRefOpen.value = false
 }
+
+const openEditPolicy = () => {
+  if (!isProjectAdmin.value) {
+    const toast = useToast()
+    toast.add({
+      color: 'red',
+      title: t('admin.permissionDenied'),
+      description: t('admin.onlyProjectAdminsCanEdit'),
+    })
+    return
+  }
+  editPolicy.policy = project.value?.policy || ''
+  isEditPolicyOpen.value = true
+}
+
+const savePolicy = async () => {
+  if (!isProjectAdmin.value || !project.value) return
+  
+  const { error } = await supabase
+    .from('projects')
+    .update({ policy: editPolicy.policy || null })
+    .eq('id', projectId.value)
+  
+  if (error) {
+    console.error('Error saving policy:', error)
+    const toast = useToast()
+    toast.add({
+      color: 'red',
+      title: t('messages.failedToCreateProject'),
+      description: error.message,
+    })
+    return
+  }
+  
+  if (project.value) {
+    project.value.policy = editPolicy.policy || null
+  }
+  
+  isEditPolicyOpen.value = false
+  
+  const toast = useToast()
+  toast.add({
+    color: 'green',
+    title: t('common.save'),
+    description: t('messages.success'),
+  })
+}
 </script>
 
 <template>
@@ -598,7 +672,11 @@ const saveEditRef = async () => {
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-3">
             <NuxtLink class="text-sm text-gray-500 hover:underline" to="/admin/projects">← {{ $t('common.back') }}</NuxtLink>
-            <h2 class="font-semibold">{{ $t('admin.projectDetailTitle', { name: project?.name || projectId }) }}</h2>
+            <div class="flex items-center gap-2">
+              <h2 class="font-semibold">{{ $t('admin.projectDetailTitle', { name: project?.name || projectId }) }}</h2>
+              <UBadge v-if="isGlobalAdminValue" color="blue" variant="soft">{{ $t('admin.globalAdmin') || 'Global Admin' }}</UBadge>
+              <UBadge v-else-if="canManageProjectValue" color="gray" variant="soft">{{ $t('admin.projectOwner') || 'Project Owner' }}</UBadge>
+            </div>
           </div>
           <div class="flex items-center gap-3">
             <span class="text-sm text-gray-500">{{ $t('common.filter') }}</span>
@@ -609,6 +687,29 @@ const saveEditRef = async () => {
       </template>
 
       <div class="grid grid-cols-1 gap-6">
+        <!-- Policy Section -->
+        <div class="col-span-1">
+          <UCard>
+            <template #header>
+              <div class="flex items-center justify-between">
+                <h3 class="font-medium">{{ $t('projects.policy') }}</h3>
+                <UButton 
+                  v-if="isProjectAdmin"
+                  size="xs" 
+                  color="gray" 
+                  variant="soft"
+                  @click="openEditPolicy"
+                >
+                  {{ $t('common.edit') }}
+                </UButton>
+              </div>
+            </template>
+            <div class="whitespace-pre-wrap text-sm text-gray-700">
+              {{ project?.policy || $t('common.noData') }}
+            </div>
+          </UCard>
+        </div>
+
         <div class="col-span-1">
           <UCard>
             <template #header>
@@ -785,17 +886,25 @@ const saveEditRef = async () => {
                       <td class="py-2" :colspan="6">
                         <UTable :rows="commissionsByUser[row.user_id] || []" :columns="[
                           { key: 'date', label: $t('common.date') },
+                          { key: 'client_name', label: $t('commissions.clientName') },
                           { key: 'description', label: $t('common.description') },
-                          { key: 'value', label: $t('common.value') },
-                          { key: 'commission_received', label: $t('commissions.commissionReceived') },
+                          { key: 'value', label: $t('commissions.contractAmount') },
+                          { key: 'commission_rate', label: $t('commissions.commissionRate') },
+                          { key: 'commission_received', label: $t('commissions.commissionAmount') },
                           { key: 'status', label: $t('common.status') },
                           { key: 'actions', label: $t('common.actions') },
                         ]">
                           <template #date-data="{ row }">
                             <span>{{ formatDate(row.date) }}</span>
                           </template>
+                          <template #client_name-data="{ row }">
+                            <span>{{ row.client_name || '—' }}</span>
+                          </template>
                           <template #value-data="{ row }">
                             <span>{{ formatValue(getOriginalValueDisplay(row), row.currency) }}</span>
+                          </template>
+                          <template #commission_rate-data="{ row }">
+                            <span>{{ row.commission_rate != null ? `${row.commission_rate}%` : '—' }}</span>
                           </template>
                           <template #commission_received-data="{ row }">
                             <span>{{ formatValue(getCommissionReceivedDisplay(row), row.currency) }}</span>
@@ -904,6 +1013,7 @@ const saveEditRef = async () => {
                 :options="availableAdminOptions" 
                 :placeholder="$t('projects.selectAdmin')" 
               />
+              <p class="text-xs text-gray-500 mt-1">{{ $t('admin.onlyProjectOwnersCanBeAdded') }}</p>
             </UFormGroup>
           </div>
           <template #footer>
@@ -911,7 +1021,41 @@ const saveEditRef = async () => {
               <UButton color="gray" variant="soft" @click="isAddAdminOpen = false">{{ $t('common.cancel') }}</UButton>
               <UButton 
                 color="primary" 
-                @click="async () => { if (manageState.addAdmin && !adminsInProject.includes(manageState.addAdmin) && project) { const next = Array.from(new Set([...(project.admins || []), manageState.addAdmin])); const { error } = await supabase.from('projects').update({ admins: next }).eq('id', projectId); if (!error) { project.admins = next; adminsInProject.value = next; manageState.addAdmin = undefined; isAddAdminOpen = false } } }"
+                @click="async () => { 
+                  if (!manageState.addAdmin || !project || !isProjectAdmin.value) return
+                  
+                  // Check if trying to add a global admin
+                  const adminToAdd = allAdmins.value.find(a => a.id === manageState.addAdmin)
+                  if (adminToAdd && adminToAdd.role === 'global_admin') {
+                    const toast = useToast()
+                    toast.add({
+                      color: 'red',
+                      title: t('admin.cannotAddGlobalAdmin'),
+                      description: t('admin.globalAdminMustBeSetManually'),
+                    })
+                    return
+                  }
+                  
+                  if (adminsInProject.includes(manageState.addAdmin)) return
+                  
+                  const next = Array.from(new Set([...(project.admins || []), manageState.addAdmin]))
+                  const { error } = await supabase.from('projects').update({ admins: next }).eq('id', projectId.value)
+                  
+                  if (error) {
+                    const toast = useToast()
+                    toast.add({
+                      color: 'red',
+                      title: t('messages.failedToAddAdmin'),
+                      description: error.message,
+                    })
+                    return
+                  }
+                  
+                  project.admins = next
+                  adminsInProject.value = next
+                  manageState.addAdmin = undefined
+                  isAddAdminOpen.value = false
+                }"
                 :disabled="!manageState.addAdmin || adminsInProject.includes(manageState.addAdmin || '') || !project || !isProjectAdmin"
                 :title="!isProjectAdmin ? $t('admin.onlyProjectAdminsCanAddAdmins') : ''"
               >
@@ -956,6 +1100,29 @@ const saveEditRef = async () => {
             <div class="flex justify-end gap-2">
               <UButton color="gray" variant="soft" @click="isEditRequestOpen = false">{{ $t('common.cancel') }}</UButton>
               <UButton color="primary" :disabled="editRequest.ref_percentage == null" @click="saveEditRequest">{{ $t('common.save') }}</UButton>
+            </div>
+          </template>
+        </UCard>
+      </UModal>
+
+      <UModal v-model="isEditPolicyOpen">
+        <UCard>
+          <template #header>
+            <h3 class="font-semibold">{{ $t('projects.editPolicy') || 'Edit Policy' }}</h3>
+          </template>
+          <div class="space-y-4">
+            <UFormGroup :label="$t('projects.policy')">
+              <UTextarea 
+                v-model="editPolicy.policy" 
+                :rows="8"
+                :placeholder="$t('projects.policyPlaceholder')"
+              />
+            </UFormGroup>
+          </div>
+          <template #footer>
+            <div class="flex justify-end gap-2">
+              <UButton color="gray" variant="soft" @click="isEditPolicyOpen = false">{{ $t('common.cancel') }}</UButton>
+              <UButton color="primary" @click="savePolicy">{{ $t('common.save') }}</UButton>
             </div>
           </template>
         </UCard>

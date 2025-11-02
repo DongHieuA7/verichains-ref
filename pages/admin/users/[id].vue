@@ -78,7 +78,7 @@ const fetchUserProjects = async () => {
 const fetchUserCommissions = async () => {
   const { data, error } = await supabase
     .from('commissions')
-    .select('id, project_id, description, date, status, value, original_value, currency')
+    .select('id, project_id, client_name, description, date, status, value, original_value, currency, contract_amount, commission_rate')
     .eq('user_id', userId.value)
     .order('date', { ascending: false })
   
@@ -426,9 +426,11 @@ watch(userCommissions, () => {
           <UTable v-else :rows="filteredCommissions" :columns="[
             { key: 'date', label: $t('common.date') },
             { key: 'project_id', label: $t('common.project') },
+            { key: 'client_name', label: $t('commissions.clientName') },
             { key: 'description', label: $t('common.description') },
-            { key: 'value', label: $t('common.value') },
-            { key: 'commission_received', label: $t('commissions.commissionReceived') },
+            { key: 'value', label: $t('commissions.contractAmount') },
+            { key: 'commission_rate', label: $t('commissions.commissionRate') },
+            { key: 'commission_received', label: $t('commissions.commissionAmount') },
             { key: 'status', label: $t('common.status') },
             { key: 'actions', label: $t('common.actions') },
           ]">
@@ -438,8 +440,14 @@ watch(userCommissions, () => {
             <template #project_id-data="{ row }">
               <span>{{ getProjectName(row.project_id) }}</span>
             </template>
+            <template #client_name-data="{ row }">
+              <span>{{ row.client_name || '—' }}</span>
+            </template>
             <template #value-data="{ row }">
               <span>{{ formatValue(getOriginalValueDisplay(row), row.currency) }}</span>
+            </template>
+            <template #commission_rate-data="{ row }">
+              <span>{{ row.commission_rate != null ? `${row.commission_rate}%` : '—' }}</span>
             </template>
             <template #commission_received-data="{ row }">
               <span>{{ formatValue(getCommissionReceivedDisplay(row), row.currency) }}</span>
