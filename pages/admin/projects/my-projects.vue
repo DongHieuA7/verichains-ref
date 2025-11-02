@@ -20,6 +20,34 @@ const isEditOpen = ref(false)
 const isManageUsersOpen = ref(false)
 const isManageAdminsOpen = ref(false)
 
+// Commissions
+const commissions = ref<any[]>([])
+const isLoadingCommissions = ref(false)
+
+// Commission filters
+const selectedProject = ref<string>('')
+const selectedStatus = ref<string>('')
+const selectedYear = ref<number | string>('')
+const selectedMonth = ref<string>('')
+
+// Edit commission modal
+const isEditCommissionOpen = ref(false)
+const editCommissionDraft = reactive<{
+  id: string
+  contract_amount: number | null
+  commission_rate: number | null
+  status: string
+  client_name: string
+  description: string
+}>({
+  id: '',
+  contract_amount: null,
+  commission_rate: null,
+  status: 'requested',
+  client_name: '',
+  description: '',
+})
+
 const draft = reactive<{ 
   id?: string, 
   name: string, 
