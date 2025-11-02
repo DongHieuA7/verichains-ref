@@ -10,6 +10,7 @@ const user = useSupabaseUser()
 const projectId = computed(() => route.params.id as string)
 const currentAdminId = computed(() => user.value?.id || '')
 const { isGlobalAdmin, canManageProject } = useAdminRole()
+const { getErrorMessage } = useErrorMessage()
 
 // Project data
 const project = ref<{ id: string, name: string, admins: string[], commission_rate_min?: number | null, commission_rate_max?: number | null, policy?: string | null } | null>(null)
@@ -126,7 +127,6 @@ const fetchProject = async () => {
     .single()
   
   if (error || !data) {
-    console.error('Error fetching project:', error)
     return
   }
   
@@ -142,7 +142,6 @@ const fetchUsersInProject = async () => {
     .eq('project_id', projectId.value)
   
   if (error) {
-    console.error('Error fetching users in project:', error)
     return
   }
   
@@ -165,7 +164,6 @@ const fetchAllUsers = async () => {
     .order('created_at', { ascending: false })
   
   if (error) {
-    console.error('Error fetching users:', error)
     return
   }
   
@@ -180,7 +178,6 @@ const fetchAllAdmins = async () => {
     .order('created_at', { ascending: false })
   
   if (error) {
-    console.error('Error fetching admins:', error)
     return
   }
   
@@ -196,7 +193,6 @@ const fetchCommissions = async () => {
     .order('date', { ascending: false })
   
   if (error) {
-    console.error('Error fetching commissions:', error)
     return
   }
   
@@ -224,7 +220,6 @@ const fetchJoinRequests = async () => {
     .order('created_at', { ascending: false })
   
   if (error) {
-    console.error('Error fetching join requests:', error)
     return
   }
   
@@ -252,7 +247,6 @@ const approveJoinRequest = async (request: JoinRequest) => {
     .eq('id', request.id)
   
   if (updateError) {
-    console.error('Error approving join request:', updateError)
     return
   }
   
@@ -267,7 +261,6 @@ const approveJoinRequest = async (request: JoinRequest) => {
     }, { onConflict: 'project_id,user_id' })
   
   if (addError) {
-    console.error('Error adding user to project:', addError)
     return
   }
   
@@ -295,7 +288,6 @@ const rejectJoinRequest = async (request: JoinRequest) => {
     .eq('id', request.id)
   
   if (error) {
-    console.error('Error rejecting join request:', error)
     return
   }
   
@@ -340,7 +332,6 @@ const confirmCommission = async (c: Commission) => {
     .eq('id', c.id)
   
   if (error) {
-    console.error('Error confirming commission:', error)
     return
   }
   
@@ -413,7 +404,6 @@ const removeUser = async (uid: string) => {
     .eq('user_id', uid)
   
   if (error) {
-    console.error('Error removing user:', error)
     return
   }
   
@@ -427,7 +417,10 @@ const removeAdmin = async (uid: string) => {
   if (uid === currentAdminId.value) return
   if (!project.value) return
   
-  if (!isProjectAdmin.value) {
+  // Global Admin can always remove, Project Owner can remove if they can manage the project
+  const canRemove = isGlobalAdminValue.value || canManageProjectValue.value
+  
+  if (!canRemove) {
     const toast = useToast()
     toast.add({
       color: 'red',
@@ -444,7 +437,6 @@ const removeAdmin = async (uid: string) => {
     .eq('id', projectId.value)
   
   if (error) {
-    console.error('Error removing admin:', error)
     return
   }
   
@@ -522,7 +514,6 @@ const saveEditRequest = async () => {
     .eq('id', editRequest.id)
   
   if (error) {
-    console.error('Error updating request:', error)
     return
   }
   
@@ -559,7 +550,6 @@ const saveEditRef = async () => {
     }, { onConflict: 'project_id,user_id' })
   
   if (error) {
-    console.error('Error saving ref percentage:', error)
     return
   }
   
@@ -593,12 +583,11 @@ const savePolicy = async () => {
     .eq('id', projectId.value)
   
   if (error) {
-    console.error('Error saving policy:', error)
     const toast = useToast()
     toast.add({
       color: 'red',
       title: t('messages.failedToCreateProject'),
-      description: error.message,
+      description: getErrorMessage(error),
     })
     return
   }
@@ -713,8 +702,8 @@ const savePolicy = async () => {
                   size="xs" 
                   color="red" 
                   variant="soft" 
-                  :disabled="row.uid === currentAdminId || !isProjectAdmin"
-                  :title="!isProjectAdmin ? $t('admin.onlyProjectAdminsCanRemoveAdmins') : ''"
+                  :disabled="row.uid === currentAdminId || (!isGlobalAdminValue && !canManageProjectValue)"
+                  :title="row.uid === currentAdminId ? $t('admin.cannotRemoveYourself') : (!isGlobalAdminValue && !canManageProjectValue ? $t('admin.onlyProjectAdminsCanRemoveAdmins') : '')"
                   @click="removeAdmin(row.uid)"
                 >
                   {{ $t('common.remove') }}
@@ -944,12 +933,11 @@ const savePolicy = async () => {
                     }, { onConflict: 'project_id,user_id' })
                   
                   if (error) {
-                    console.error('Error adding user:', error)
                     const toast = useToast()
                     toast.add({
                       color: 'red',
                       title: t('messages.failedToAddUser'),
-                      description: error.message,
+                      description: getErrorMessage(error),
                     })
                     return
                   }
@@ -1013,7 +1001,7 @@ const savePolicy = async () => {
                     toast.add({
                       color: 'red',
                       title: t('messages.failedToAddAdmin'),
-                      description: error.message,
+                      description: getErrorMessage(error),
                     })
                     return
                   }

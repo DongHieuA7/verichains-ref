@@ -41,7 +41,6 @@ const fetchProjects = async () => {
     .eq('user_id', user.value.id)
   
   if (error) {
-    console.error('Error fetching user projects:', error)
     projects.value = []
     return
   }
@@ -54,7 +53,6 @@ const fetchProjects = async () => {
   // Remove duplicates (in case there are any)
   const uniqueProjectIds = Array.from(new Set(userProjects.map(up => up.project_id)))
   
-  console.log('[DEBUG] User projects from user_project_info:', userProjects.length, 'Unique:', uniqueProjectIds.length, uniqueProjectIds)
   
   if (uniqueProjectIds.length === 0) {
     projects.value = []
@@ -76,12 +74,10 @@ const fetchProjects = async () => {
     .order('name')
   
   if (projectsError) {
-    console.error('Error fetching projects:', projectsError)
     projects.value = []
     return
   }
   
-  console.log('[DEBUG] Fetched projects:', data?.length, data?.map(p => p.name))
   
   projects.value = data || []
 }

@@ -28,12 +28,6 @@ export default defineEventHandler(async (event) => {
     process.env.NUXT_PUBLIC_SUPABASE_KEY
 
   if (!supabaseUrl || !anonKey) {
-    console.error('Supabase config missing:', {
-      supabaseUrl: !!supabaseUrl,
-      anonKey: !!anonKey,
-      config: Object.keys(config),
-      env: Object.keys(process.env).filter(k => k.includes('SUPABASE'))
-    })
     throw createError({ statusCode: 500, statusMessage: 'Supabase config missing. Please set SUPABASE_URL and SUPABASE_ANON_KEY environment variables.' })
   }
 
@@ -74,7 +68,6 @@ export default defineEventHandler(async (event) => {
     process.env.SUPABASE_SERVICE_ROLE_KEY
 
   if (!serviceKey) {
-    console.error('Supabase service role key missing')
     throw createError({ statusCode: 500, statusMessage: 'Supabase service config missing. Please set SUPABASE_SERVICE_ROLE_KEY environment variable.' })
   }
 
@@ -84,7 +77,6 @@ export default defineEventHandler(async (event) => {
   const { error: deleteError } = await adminClient.auth.admin.deleteUser(body.userId)
 
   if (deleteError) {
-    console.error('Error deleting user:', deleteError)
     throw createError({ statusCode: 500, statusMessage: deleteError.message || 'Failed to delete user' })
   }
 

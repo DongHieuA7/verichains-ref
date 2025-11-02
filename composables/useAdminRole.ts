@@ -26,7 +26,6 @@ export const useAdminRole = () => {
       .rpc('is_global_admin', { user_id: user.value.id })
     
     if (error) {
-      console.error('Error checking global admin:', error)
       return false
     }
     
@@ -47,7 +46,6 @@ export const useAdminRole = () => {
       })
     
     if (error) {
-      console.error('Error checking project owner:', error)
       return false
     }
     
@@ -70,7 +68,6 @@ export const useAdminRole = () => {
       })
     
     if (error) {
-      console.error('Error checking can manage project:', error)
       return false
     }
     
@@ -91,7 +88,6 @@ export const useAdminRole = () => {
       .maybeSingle()
     
     if (error) {
-      console.error('Error checking admin:', error)
       return false
     }
     

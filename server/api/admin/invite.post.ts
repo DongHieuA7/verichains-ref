@@ -24,14 +24,6 @@ export default defineEventHandler(async (event) => {
     process.env.NUXT_PUBLIC_SUPABASE_KEY
   
   if (!supabaseUrl || !anonKey) {
-    console.error('Supabase config missing:', { 
-      hasUrl: !!supabaseUrl, 
-      hasKey: !!anonKey,
-      configSupabaseUrl: !!(config as any).supabaseUrl,
-      configPublicUrl: !!(config as any).public?.supabaseUrl,
-      envUrl: !!process.env.SUPABASE_URL,
-      envKey: !!process.env.SUPABASE_ANON_KEY
-    })
     throw createError({ statusCode: 500, statusMessage: 'Supabase config missing. Please set SUPABASE_URL and SUPABASE_ANON_KEY environment variables.' })
   }
 
@@ -66,30 +58,82 @@ export default defineEventHandler(async (event) => {
     process.env.SUPABASE_SERVICE_ROLE_KEY
 
   if (!serviceKey) {
-    console.error('Supabase service role key missing')
     throw createError({ statusCode: 500, statusMessage: 'Supabase service config missing. Please set SUPABASE_SERVICE_ROLE_KEY environment variable.' })
   }
 
   const adminClient = createClient(supabaseUrl, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } })
 
-  // Invite user
-  const inviteRes = await adminClient.auth.admin.inviteUserByEmail(body.email)
-  if (inviteRes.error) {
-    throw createError({ statusCode: inviteRes.error.status || 400, statusMessage: inviteRes.error.message })
+  let userId: string | null = null
+
+  // Check if user exists in user_profiles first (for existing users)
+  const { data: existingUserProfile } = await adminClient
+    .from('user_profiles')
+    .select('id')
+    .eq('email', body.email)
+    .maybeSingle()
+
+  if (existingUserProfile) {
+    // User exists in user_profiles, use their ID
+    userId = existingUserProfile.id
+  } else {
+    // Check if user exists in admins
+    const { data: existingAdmin } = await adminClient
+      .from('admins')
+      .select('id')
+      .eq('email', body.email)
+      .maybeSingle()
+    
+    if (existingAdmin) {
+      userId = existingAdmin.id
+    } else {
+      // User doesn't exist, try to invite them
+      const inviteRes = await adminClient.auth.admin.inviteUserByEmail(body.email)
+      if (inviteRes.error) {
+        // If invite fails with "user already exists", try to get user by email from auth
+        if (inviteRes.error.message?.toLowerCase().includes('already') || inviteRes.error.message?.toLowerCase().includes('exists')) {
+          // Try to find user by listing users with pagination
+          let foundUser = null
+          let page = 0
+          const perPage = 100
+          
+          while (!foundUser && page < 10) { // Limit to 10 pages (1000 users max)
+            const { data: usersData } = await adminClient.auth.admin.listUsers({ page, perPage })
+            foundUser = usersData?.users?.find(u => u.email === body.email)
+            if (foundUser || !usersData?.users || usersData.users.length < perPage) break
+            page++
+          }
+          
+          if (foundUser) {
+            userId = foundUser.id
+          } else {
+            throw createError({ statusCode: 400, statusMessage: inviteRes.error.message || 'User already exists but could not be found' })
+          }
+        } else {
+          throw createError({ statusCode: inviteRes.error.status || 400, statusMessage: inviteRes.error.message })
+        }
+      } else {
+        userId = inviteRes.data.user?.id || null
+      }
+    }
   }
 
-  const userId = inviteRes.data.user?.id
   if (userId) {
     if (body.makeAdmin) {
-      // If user is being set as admin, create admin record
-      // Trigger will automatically delete user_profiles if it exists
+      // If user is being set as admin, create admin record and delete from user_profiles
       const { error: adminErr } = await adminClient
         .from('admins')
         .upsert({ id: userId, email: body.email, name: body.name || null }, { onConflict: 'id' })
       if (adminErr) {
-        console.error(adminErr)
         throw createError({ statusCode: 500, statusMessage: 'Failed to create admin' })
       }
+      
+      // Delete from user_profiles if exists
+      const { error: deleteErr } = await adminClient
+        .from('user_profiles')
+        .delete()
+        .eq('id', userId)
+      
+      // Non-fatal if delete fails (user might not be in user_profiles)
     } else {
       // If user is not admin, create user profile
       const { error: upsertErr } = await adminClient
@@ -98,8 +142,15 @@ export default defineEventHandler(async (event) => {
 
       if (upsertErr) {
         // non-fatal
-        console.error(upsertErr)
       }
+      
+      // Delete from admins if exists (downgrade from admin to user)
+      const { error: deleteAdminErr } = await adminClient
+        .from('admins')
+        .delete()
+        .eq('id', userId)
+      
+      // Non-fatal if delete fails
     }
   }
 

@@ -29,7 +29,6 @@ const fetchProjects = async () => {
     .order('name')
   
   if (error) {
-    console.error('Error fetching projects:', error)
     return
   }
   
@@ -46,7 +45,6 @@ const fetchUserProjects = async () => {
     .eq('user_id', user.value.id)
   
   if (error) {
-    console.error('Error fetching user projects:', error)
     return
   }
   
@@ -64,7 +62,6 @@ const fetchUserRequests = async () => {
     .eq('status', 'pending')
   
   if (error) {
-    console.error('Error fetching user requests:', error)
     return
   }
   
@@ -117,7 +114,6 @@ const submitJoinRequest = async () => {
       })
     
     if (error) {
-      console.error('Error submitting join request:', error)
       throw error
     }
     
@@ -132,7 +128,6 @@ const submitJoinRequest = async () => {
       description: t('projects.requestSubmittedDescription'),
     })
   } catch (error) {
-    console.error(error)
   } finally {
     isLoading.value = false
   }

@@ -26,7 +26,6 @@ const fetchUserProfile = async () => {
     .single()
   
   if (error || !data) {
-    console.error('Error fetching user profile:', error)
     return
   }
   
@@ -41,7 +40,6 @@ const fetchUserProjects = async () => {
     .eq('user_id', userId.value)
   
   if (error) {
-    console.error('Error fetching user projects:', error)
     return
   }
   
@@ -58,7 +56,6 @@ const fetchUserProjects = async () => {
     .in('id', projectIds)
   
   if (projectsError) {
-    console.error('Error fetching projects:', projectsError)
     userProjects.value = []
     return
   }
@@ -83,7 +80,6 @@ const fetchUserCommissions = async () => {
     .order('date', { ascending: false })
   
   if (error) {
-    console.error('Error fetching commissions:', error)
     return
   }
   
@@ -103,7 +99,6 @@ const fetchProjectsMap = async () => {
     .in('id', projectIds)
   
   if (error) {
-    console.error('Error fetching projects map:', error)
     return
   }
   
@@ -213,7 +208,6 @@ const approveCommission = async (commission: any) => {
     .single()
   
   if (refError) {
-    console.error('Error fetching ref_percentage:', refError)
     // Use 0 if not found
   }
   
@@ -234,7 +228,6 @@ const approveCommission = async (commission: any) => {
     .eq('id', commission.id)
   
   if (error) {
-    console.error('Error approving commission:', error)
     return
   }
   

@@ -16,9 +16,6 @@ class BaseError {
 const errorHandler = (error: PostgrestError | never) => {
 	const errorType = typeof error
 
-	// if(error) {
-	//   console.error(error)
-	// }
 
 	if (error.code) {
 	}

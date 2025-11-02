@@ -47,7 +47,6 @@ const fetchCommissions = async () => {
       .order('date', { ascending: false })
     
     if (error) {
-      console.error('Error fetching commissions:', error)
       return
     }
     
@@ -183,11 +182,9 @@ const capitalize = (str: string) => {
 // Open edit modal
 const openEdit = (row: any) => {
   if (!row || !row.id) {
-    console.warn('Invalid row data:', row)
     return
   }
   
-  console.log('Opening edit for commission:', row.id, row)
   
   // Set values directly - convert null/undefined to empty strings for text inputs
   editDraft.id = row.id || ''
@@ -259,12 +256,11 @@ const saveCommission = async () => {
       description: t('messages.success'),
     })
   } catch (error: any) {
-    console.error('Error updating commission:', error)
     const toast = useToast()
     toast.add({
       color: 'red',
       title: t('messages.failedToUpdate'),
-      description: error.message,
+      description: getErrorMessage(error),
     })
   } finally {
     isLoading.value = false

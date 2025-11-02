@@ -8,6 +8,7 @@ const supabase = useSupabaseClient()
 const user = useSupabaseUser()
 const currentAdminId = computed(() => user.value?.id || '')
 const { isGlobalAdmin, canManageProject } = useAdminRole()
+const { getErrorMessage } = useErrorMessage()
 
 type Project = { id: string, name: string, admins: string[], commission_rate_min?: number | null, commission_rate_max?: number | null, policy?: string | null }
 const projects = ref<Project[]>([])
@@ -181,12 +182,11 @@ const createProject = async () => {
     .single()
   
   if (error) {
-    console.error('Error creating project:', error)
     const toast = useToast()
     toast.add({
       color: 'red',
       title: t('messages.failedToCreateProject'),
-      description: error.message,
+      description: getErrorMessage(error),
     })
     return
   }
@@ -215,7 +215,6 @@ const createProject = async () => {
         .insert(userInserts)
       
       if (usersError) {
-        console.error('Error adding users to project:', usersError)
         // Non-fatal, just log
       } else {
         await refreshCounts()
@@ -249,12 +248,23 @@ const saveProject = async () => {
     return
   }
   
-  await supabase.from('projects').update({ 
+  const { error } = await supabase.from('projects').update({ 
     name: draft.name.trim(),
     commission_rate_min: draft.commission_rate_min || null,
     commission_rate_max: draft.commission_rate_max || null,
     policy: draft.policy || null
   }).eq('id', draft.id)
+  
+  if (error) {
+    const toast = useToast()
+    toast.add({
+      color: 'red',
+      title: t('messages.failedToUpdate'),
+      description: getErrorMessage(error),
+    })
+    return
+  }
+  
   const idx = projects.value.findIndex(p => p.id === draft.id)
   if (idx !== -1) {
     projects.value[idx].name = draft.name.trim()
@@ -289,7 +299,18 @@ const deleteProject = async (p: Project) => {
     return
   }
   
-  await supabase.from('projects').delete().eq('id', p.id)
+  const { error } = await supabase.from('projects').delete().eq('id', p.id)
+  
+  if (error) {
+    const toast = useToast()
+    toast.add({
+      color: 'red',
+      title: t('messages.failedToDelete'),
+      description: getErrorMessage(error),
+    })
+    return
+  }
+  
   projects.value = projects.value.filter(x => x.id !== p.id)
 }
 
@@ -339,12 +360,11 @@ const addUserToProject = async () => {
     }, { onConflict: 'project_id,user_id' })
   
   if (error) {
-    console.error('Error adding user:', error)
     const toast = useToast()
     toast.add({
       color: 'red',
       title: t('messages.failedToAddUser'),
-      description: error.message,
+      description: getErrorMessage(error),
     })
     return
   }
@@ -368,7 +388,18 @@ const removeUserFromProject = async (uid: string) => {
     return
   }
   
-  await supabase.from('user_project_info').delete().eq('project_id', selected.value.id).eq('user_id', uid)
+  const { error } = await supabase.from('user_project_info').delete().eq('project_id', selected.value.id).eq('user_id', uid)
+  
+  if (error) {
+    const toast = useToast()
+    toast.add({
+      color: 'red',
+      title: t('messages.failedToRemove'),
+      description: getErrorMessage(error),
+    })
+    return
+  }
+  
   projectUsers.value = projectUsers.value.filter(id => id !== uid)
   await refreshCounts()
 }
@@ -421,12 +452,11 @@ const addAdminToProject = async () => {
     .eq('id', p.id)
   
   if (error) {
-    console.error('Error adding admin:', error)
     const toast = useToast()
     toast.add({
       color: 'red',
       title: t('messages.failedToAddAdmin'),
-      description: error.message,
+      description: getErrorMessage(error),
     })
     return
   }
@@ -454,7 +484,18 @@ const removeAdminFromProject = async (uid: string) => {
   const p = projects.value.find(pr => pr.id === selected.value!.id)
   if (!p) return
   const next = (p.admins || []).filter(id => id !== uid)
-  await supabase.from('projects').update({ admins: next }).eq('id', p.id)
+  const { error } = await supabase.from('projects').update({ admins: next }).eq('id', p.id)
+  
+  if (error) {
+    const toast = useToast()
+    toast.add({
+      color: 'red',
+      title: t('messages.failedToRemove'),
+      description: getErrorMessage(error),
+    })
+    return
+  }
+  
   p.admins = next
   selected.value.admins = next
 }

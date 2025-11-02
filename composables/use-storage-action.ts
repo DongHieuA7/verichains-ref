@@ -39,7 +39,6 @@ const useStorageAction = () => {
 		try {
 			loadingState.getImageDetail = true
 
-			console.log(path)
 
 			const { data, error } = await getImageDetail(path)
 

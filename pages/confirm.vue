@@ -17,14 +17,13 @@ const checkAndRedirect = async () => {
       .maybeSingle()
     
     if (data) {
-      // User is admin, redirect to admin projects
-      return navigateTo('/admin/projects')
+      // User is admin, redirect to admin commissions
+      return navigateTo('/admin/commissions')
     } else {
       // User is regular user, redirect to commissions
       return navigateTo('/commissions')
     }
   } catch (error) {
-    console.error('Error checking admin status:', error)
     // Default to commissions if error
     return navigateTo('/commissions')
   }

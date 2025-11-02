@@ -9,6 +9,7 @@ const isLoading = ref(false)
 const users = ref<any[]>([])
 const supabase = useSupabaseClient()
 const { formatDate } = useCommissionFormatters()
+const { getErrorMessage } = useErrorMessage()
 
 const form = reactive({
   email: '',
@@ -69,7 +70,7 @@ const deleteUser = async () => {
     toast.add({
       color: 'red',
       title: t('users.failedToDeleteUser'),
-      description: error.data?.message || error.message || t('users.pleaseTryAgain'),
+      description: getErrorMessage(error),
     })
   } finally {
     isLoading.value = false
@@ -114,7 +115,7 @@ const invite = async () => {
     toast.add({
       color: 'red',
       title: t('users.failedToInviteUser'),
-      description: error.message || t('users.pleaseTryAgain'),
+      description: getErrorMessage(error),
     })
   } finally {
     isLoading.value = false
