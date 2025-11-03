@@ -207,6 +207,24 @@ const perProject = computed(() => {
   return Object.values(map)
 })
 
+// Computed for project ref info
+const projectRefInfo = computed(() => {
+  const info: Record<string, { ref_percentage: number }> = {}
+  for (const p of projects.value) {
+    info[p.id] = { ref_percentage: projectRefPercentages.value[p.id] || 0 }
+  }
+  return info
+})
+
+// Computed for projects map
+const projectsMap = computed(() => {
+  const map: Record<string, string> = {}
+  for (const p of projects.value) {
+    map[p.id] = p.name || p.id
+  }
+  return map
+})
+
 // Project count should show all projects that user has joined (from user_project_info)
 // This matches the dropdown options in "New Commission"
 const projectCount = computed(() => projects.value.length)
@@ -339,14 +357,16 @@ const saveEdit = async () => {
       </div>
 
       <!-- Commissions Table -->
-      <AdminCommissionsCommissionsTable
-        :commissions="Array.isArray(filteredCommissions) ? filteredCommissions : []"
-        :show-project="true"
-        :can-edit="true"
-        :project-ref-info="projects.length > 0 ? Object.fromEntries(projects.map(p => [p.id, { ref_percentage: projectRefPercentages[p.id] || 0 }])) : {}"
-        :projects-map="projects.length > 0 ? Object.fromEntries(projects.map(p => [p.id, p.name || p.id])) : {}"
-        @edit="openEdit"
-      />
+      <div class="w-full mt-4">
+        <AdminCommissionsCommissionsTable
+          :commissions="filteredCommissions || []"
+          :show-project="true"
+          :can-edit="true"
+          :project-ref-info="projectRefInfo"
+          :projects-map="projectsMap"
+          @edit="openEdit"
+        />
+      </div>
 
       <UModal v-model="isModalOpen">
           <UCard>

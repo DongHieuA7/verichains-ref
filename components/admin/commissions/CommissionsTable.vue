@@ -130,12 +130,17 @@ const columns = computed(() => {
 
 <template>
   <div class="w-full overflow-x-auto" style="width: 100%; display: block; min-height: 200px;">
-    <UTable :rows="props.commissions || []" :columns="columns" style="width: 100%; min-width: 100%;">
+    <UTable 
+      v-if="props.commissions && props.commissions.length > 0"
+      :rows="props.commissions" 
+      :columns="columns" 
+      style="width: 100%; min-width: 100%; display: table;"
+    >
     <template #date-data="{ row }">
       <span>{{ formatDate(row.date) }}</span>
     </template>
     
-    <template v-if="showUser" #user_id-data="{ row }">
+    <template v-if="props.showUser" #user_id-data="{ row }">
       <NuxtLink 
         v-if="row.user_id"
         class="text-primary hover:underline" 
@@ -146,7 +151,7 @@ const columns = computed(() => {
       <span v-else>—</span>
     </template>
     
-    <template v-if="showProject" #project_id-data="{ row }">
+    <template v-if="props.showProject" #project_id-data="{ row }">
       <NuxtLink 
         v-if="row.project_id"
         class="text-primary hover:underline" 
@@ -185,10 +190,10 @@ const columns = computed(() => {
       />
     </template>
     
-    <template v-if="canEdit || canApprove" #actions-data="{ row }">
+    <template v-if="props.canEdit || props.canApprove" #actions-data="{ row }">
       <div class="flex gap-2">
         <UButton 
-          v-if="canEdit"
+          v-if="props.canEdit"
           size="xs" 
           color="gray" 
           @click="emit('edit', row)"
@@ -196,7 +201,7 @@ const columns = computed(() => {
           {{ $t('common.edit') }}
         </UButton>
         <UButton 
-          v-if="canApprove && row.status === 'requested'"
+          v-if="props.canApprove && row.status === 'requested'"
           size="xs" 
           color="green" 
           variant="soft"
@@ -204,16 +209,14 @@ const columns = computed(() => {
         >
           {{ $t('projects.approve') }}
         </UButton>
-        <span v-if="!canEdit && !canApprove" class="text-xs text-gray-400">—</span>
+        <span v-if="!props.canEdit && !props.canApprove" class="text-xs text-gray-400">—</span>
       </div>
     </template>
     
-    <template #empty>
-      <div class="text-sm text-gray-500 py-4 text-center">
-        {{ $t('commissions.noCommissions') }}
-      </div>
-    </template>
-  </UTable>
+    </UTable>
+    <div v-else class="text-sm text-gray-500 py-8 text-center">
+      {{ $t('commissions.noCommissions') }}
+    </div>
   </div>
 </template>
 
