@@ -28,8 +28,8 @@ const projects = ref<any[]>([])
 // Store ref_percentage for each project
 const projectRefPercentages = ref<Record<string, number>>({})
 
-// Format functions - some may still be used in filters/computed
-const { formatDate, formatValue } = useCommissionFormatters()
+// Format functions
+const { formatDate, formatValue, formatStatus } = useCommissionFormatters()
 
 const fetchProjects = async () => {
   if (!user.value) return
@@ -207,23 +207,59 @@ const perProject = computed(() => {
   return Object.values(map)
 })
 
-// Computed for project ref info
-const projectRefInfo = computed(() => {
-  const info: Record<string, { ref_percentage: number }> = {}
-  for (const p of projects.value) {
-    info[p.id] = { ref_percentage: projectRefPercentages.value[p.id] || 0 }
-  }
-  return info
-})
+// Helper functions for table display
+const getOriginalValueDisplay = (commission: any) => {
+  return commission.contract_amount != null ? commission.contract_amount : (commission.original_value != null ? commission.original_value : commission.value)
+}
 
-// Computed for projects map
-const projectsMap = computed(() => {
-  const map: Record<string, string> = {}
-  for (const p of projects.value) {
-    map[p.id] = p.name || p.id
+const getCommissionReceivedDisplay = (commission: any) => {
+  // If status is confirmed or paid, use the stored value
+  if (commission.status === 'confirmed' || commission.status === 'paid') {
+    return commission.value
   }
-  return map
-})
+  
+  // For requested status: calculate
+  if (commission.contract_amount != null && commission.commission_rate != null) {
+    return Number(commission.contract_amount || 0) * (Number(commission.commission_rate || 0) / 100)
+  }
+  
+  // Fallback: calculate based on ref_percentage from project
+  const projectId = commission.project_id
+  if (projectId && projectRefPercentages.value[projectId]) {
+    const refPercentage = projectRefPercentages.value[projectId]
+    if (refPercentage > 0) {
+      const originalValue = commission.original_value != null ? commission.original_value : commission.value
+      return originalValue * (refPercentage / 100)
+    }
+  }
+  
+  return commission.value
+}
+
+const getProjectName = (projectId?: string) => {
+  if (!projectId) return '—'
+  const project = projects.value.find(p => p.id === projectId)
+  return project?.name || projectId
+}
+
+const getStatusColor = (status: string) => {
+  if (status === 'paid') return 'green'
+  if (status === 'confirmed') return 'blue'
+  return 'yellow'
+}
+
+// Table columns
+const tableColumns = computed(() => [
+  { key: 'date', label: t('common.date') },
+  { key: 'project_id', label: t('common.project') },
+  { key: 'client_name', label: t('commissions.clientName') },
+  { key: 'description', label: t('common.description') },
+  { key: 'value', label: t('commissions.contractAmount') },
+  { key: 'commission_rate', label: t('commissions.commissionRate') },
+  { key: 'commission_received', label: t('commissions.commissionAmount') },
+  { key: 'status', label: t('common.status') },
+  { key: 'actions', label: t('common.actions') },
+])
 
 // Project count should show all projects that user has joined (from user_project_info)
 // This matches the dropdown options in "New Commission"
@@ -357,16 +393,66 @@ const saveEdit = async () => {
       </div>
 
       <!-- Commissions Table -->
-      <div class="w-full mt-4">
-        <AdminCommissionsCommissionsTable
-          :commissions="filteredCommissions || []"
-          :show-project="true"
-          :can-edit="true"
-          :project-ref-info="projectRefInfo"
-          :projects-map="projectsMap"
-          @edit="openEdit"
-        />
-      </div>
+      <UTable 
+        :rows="filteredCommissions" 
+        :columns="tableColumns"
+      >
+        <template #date-data="{ row }">
+          <span>{{ formatDate(row.date) }}</span>
+        </template>
+        
+        <template #project_id-data="{ row }">
+          <span>{{ getProjectName(row.project_id) }}</span>
+        </template>
+        
+        <template #client_name-data="{ row }">
+          <span>{{ row.client_name || '—' }}</span>
+        </template>
+        
+        <template #description-data="{ row }">
+          <span>{{ row.description || '—' }}</span>
+        </template>
+        
+        <template #value-data="{ row }">
+          <span>{{ formatValue(getOriginalValueDisplay(row), row.currency || 'VND') }}</span>
+        </template>
+        
+        <template #commission_rate-data="{ row }">
+          <span>{{ row.commission_rate != null ? `${row.commission_rate}%` : '—' }}</span>
+        </template>
+        
+        <template #commission_received-data="{ row }">
+          <span>{{ formatValue(getCommissionReceivedDisplay(row), row.currency || 'VND') }}</span>
+        </template>
+        
+        <template #status-data="{ row }">
+          <UBadge 
+            :label="formatStatus(row.status || 'unknown')" 
+            :color="getStatusColor(row.status)" 
+            variant="soft" 
+          />
+        </template>
+        
+        <template #actions-data="{ row }">
+          <div class="flex gap-2">
+            <UButton 
+              v-if="row.status === 'requested'"
+              size="xs" 
+              color="gray" 
+              @click="openEdit(row)"
+            >
+              {{ $t('common.edit') }}
+            </UButton>
+            <span v-else class="text-xs text-gray-400">—</span>
+          </div>
+        </template>
+        
+        <template #empty>
+          <div class="text-sm text-gray-500 py-8 text-center">
+            {{ $t('commissions.noCommissions') }}
+          </div>
+        </template>
+      </UTable>
 
       <UModal v-model="isModalOpen">
           <UCard>

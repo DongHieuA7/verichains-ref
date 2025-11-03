@@ -1074,14 +1074,63 @@ const saveCommission = async () => {
                     <tr v-show="row.status === 'joined' && expandedUsers.has(row.user_id)" class="bg-gray-50/40">
                       <td></td>
                       <td class="py-2" :colspan="7">
-                        <AdminCommissionsCommissionsTable
-                          :commissions="commissionsByUser[row.user_id] || []"
-                          :can-edit="isProjectAdmin"
-                          :can-approve="isProjectAdmin"
-                          :user-ref-info="userRefInfo"
-                          @edit="openEditCommission"
-                          @approve="confirmCommission"
-                        />
+                        <UTable 
+                          :rows="commissionsByUser[row.user_id] || []" 
+                          :columns="[
+                            { key: 'date', label: $t('common.date') },
+                            { key: 'client_name', label: $t('commissions.clientName') },
+                            { key: 'description', label: $t('common.description') },
+                            { key: 'value', label: $t('commissions.contractAmount') },
+                            { key: 'commission_rate', label: $t('commissions.commissionRate') },
+                            { key: 'commission_received', label: $t('commissions.commissionAmount') },
+                            { key: 'status', label: $t('common.status') },
+                            { key: 'actions', label: $t('common.actions') },
+                          ]"
+                        >
+                          <template #date-data="{ row: c }">
+                            <span>{{ formatDate(c.date) }}</span>
+                          </template>
+                          <template #client_name-data="{ row: c }">
+                            <span>{{ c.client_name || '—' }}</span>
+                          </template>
+                          <template #description-data="{ row: c }">
+                            <span>{{ c.description || '—' }}</span>
+                          </template>
+                          <template #value-data="{ row: c }">
+                            <span>{{ formatValue(c.contract_amount != null ? c.contract_amount : (c.original_value != null ? c.original_value : c.value), c.currency || 'VND') }}</span>
+                          </template>
+                          <template #commission_rate-data="{ row: c }">
+                            <span>{{ c.commission_rate != null ? `${c.commission_rate}%` : '—' }}</span>
+                          </template>
+                          <template #commission_received-data="{ row: c }">
+                            <span>
+                              {{ formatValue((() => {
+                                if (c.status === 'confirmed' || c.status === 'paid') return c.value
+                                if (c.contract_amount != null && c.commission_rate != null) {
+                                  return Number(c.contract_amount || 0) * (Number(c.commission_rate || 0) / 100)
+                                }
+                                const ref = userRefInfo[c.user_id]?.ref_percentage || 0
+                                if (ref > 0) {
+                                  const base = c.original_value != null ? c.original_value : c.value
+                                  return base * (ref / 100)
+                                }
+                                return c.value
+                              })(), c.currency || 'VND') }}
+                            </span>
+                          </template>
+                          <template #status-data="{ row: c }">
+                            <UBadge :label="formatStatus(c.status || 'unknown')" :color="c.status === 'paid' ? 'green' : (c.status === 'confirmed' ? 'blue' : 'yellow')" variant="soft" />
+                          </template>
+                          <template #actions-data="{ row: c }">
+                            <div class="flex gap-2">
+                              <UButton v-if="isProjectAdmin" size="xs" color="gray" @click="openEditCommission(c)">{{ $t('common.edit') }}</UButton>
+                              <UButton v-if="isProjectAdmin && c.status === 'requested'" size="xs" color="green" variant="soft" @click="confirmCommission(c)">{{ $t('projects.approve') }}</UButton>
+                            </div>
+                          </template>
+                          <template #empty>
+                            <div class="text-sm text-gray-500 py-4 text-center">{{ $t('commissions.noCommissions') }}</div>
+                          </template>
+                        </UTable>
                       </td>
                     </tr>
                     </template>
