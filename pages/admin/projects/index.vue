@@ -68,7 +68,7 @@ const columns = computed(() => [
   { key: 'name', label: t('common.project') },
   { key: 'commissionRate', label: t('projects.commissionRateRange') },
   { key: 'usersCount', label: t('common.users') },
-  { key: 'adminsCount', label: t('common.admins') },
+  { key: 'adminsCount', label: t('projects.projectOwners') },
   { key: 'actions', label: t('common.actions') },
 ])
 

@@ -895,7 +895,7 @@ const saveCommission = async () => {
           <UCard>
             <template #header>
               <div class="flex items-center justify-between">
-                <h3 class="font-medium">{{ $t('common.admins') }}</h3>
+                <h3 class="font-medium">{{ $t('projects.projectOwners') }}</h3>
                 <UButton 
                   size="xs" 
                   color="primary" 
