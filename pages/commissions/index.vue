@@ -400,7 +400,6 @@ const saveEdit = async () => {
             </template>
           </UCard>
         </UModal>
-      </div>
     </UCard>
   </div>
 </template>
