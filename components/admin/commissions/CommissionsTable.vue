@@ -165,7 +165,7 @@ const columns = computed(() => {
     </template>
     
     <template #value-data="{ row }">
-      <span>{{ formatValue(getOriginalValueDisplay(row), row.currency) }}</span>
+      <span>{{ formatValue(getOriginalValueDisplay(row), row.currency || 'VND') }}</span>
     </template>
     
     <template #commission_rate-data="{ row }">
@@ -173,7 +173,7 @@ const columns = computed(() => {
     </template>
     
     <template #commission_received-data="{ row }">
-      <span>{{ formatValue(getCommissionReceivedDisplay(row), row.currency) }}</span>
+      <span>{{ formatValue(getCommissionReceivedDisplay(row), row.currency || 'VND') }}</span>
     </template>
     
     <template #status-data="{ row }">

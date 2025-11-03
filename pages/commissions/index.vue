@@ -86,7 +86,7 @@ const fetchCommissions = async () => {
   if (!user.value) return
   const { data } = await supabase
     .from('commissions')
-    .select('id, project_id, client_name, description, date, status, value, original_value, contract_amount, commission_rate')
+    .select('id, project_id, client_name, description, date, status, value, original_value, currency, contract_amount, commission_rate')
     .eq('user_id', user.value.id)
     .order('date', { ascending: false })
   commissions.value = data || []
@@ -338,7 +338,7 @@ const saveEdit = async () => {
             </div>
           </div>
         </div>
-        <div class="md:col-span-3">
+        <div class="md:col-span-3 mt-4">
           <AdminCommissionsCommissionsTable
             :commissions="filteredCommissions"
             :show-project="true"
