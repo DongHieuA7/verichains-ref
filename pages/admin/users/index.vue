@@ -143,8 +143,16 @@ const invite = async () => {
             { key: 'created_at', label: $t('projects.created') },
             { key: 'actions', label: $t('common.actions') },
           ]">
+            <template #name-data="{ row }">
+              <NuxtLink 
+                class="text-primary hover:underline font-medium" 
+                :to="`/admin/users/${row.id}`"
+              >
+                {{ row.name || row.email }}
+              </NuxtLink>
+            </template>
             <template #email-data="{ row }">
-              <NuxtLink class="text-primary hover:underline" :to="`/admin/users/${row.id}`">{{ row.email }}</NuxtLink>
+              <span>{{ row.email }}</span>
             </template>
             <template #created_at-data="{ row }">
               <span>{{ formatDate(row.created_at) }}</span>

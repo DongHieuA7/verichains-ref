@@ -860,7 +860,6 @@ watch(filteredProjects, () => {
           </div>
         </template>
         <div class="space-y-4">
-          <p class="text-xs text-gray-500">{{ $t('admin.onlyProjectOwnersCanBeAdded') }}</p>
           <div v-if="selected?.admins && selected.admins.length > 0" class="flex flex-wrap gap-2">
             <UBadge v-for="uid in selected.admins" :key="uid" color="primary">
               <span class="mr-1">{{ displayAdmin(uid) }}</span>

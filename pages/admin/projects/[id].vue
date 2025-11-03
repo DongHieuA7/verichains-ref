@@ -1204,7 +1204,6 @@ const saveCommission = async () => {
                 :options="availableAdminOptions" 
                 :placeholder="$t('projects.selectProjectOwner')" 
               />
-              <p class="text-xs text-gray-500 mt-1">{{ $t('admin.onlyProjectOwnersCanBeAdded') }}</p>
             </UFormGroup>
           </div>
           <template #footer>
@@ -1241,7 +1240,7 @@ const saveCommission = async () => {
                     toast.add({
                       color: 'red',
                       title: t('admin.permissionDenied'),
-                      description: t('admin.onlyProjectAdminsCanAddAdmins'),
+                      description: isGlobalAdminValue.value ? t('admin.onlyGlobalAdminsCanAddAdmins') : t('admin.onlyProjectAdminsCanAddAdmins'),
                     })
                     return
                   }
