@@ -129,7 +129,8 @@ const columns = computed(() => {
 </script>
 
 <template>
-  <UTable :rows="commissions" :columns="columns">
+  <div class="w-full overflow-x-auto">
+    <UTable :rows="commissions" :columns="columns" class="min-w-full">
     <template #date-data="{ row }">
       <span>{{ formatDate(row.date) }}</span>
     </template>
@@ -213,5 +214,6 @@ const columns = computed(() => {
       </div>
     </template>
   </UTable>
+  </div>
 </template>
 

@@ -338,7 +338,7 @@ const saveEdit = async () => {
             </div>
           </div>
         </div>
-        <div class="md:col-span-3 mt-4">
+        <div class="md:col-span-3 mt-4 w-full">
           <AdminCommissionsCommissionsTable
             :commissions="filteredCommissions"
             :show-project="true"
