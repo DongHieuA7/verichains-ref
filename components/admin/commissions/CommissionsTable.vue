@@ -7,7 +7,7 @@ type Commission = {
   user_id?: string
   project_id?: string
   client_name?: string | null
-  description: string
+  description?: string | null
   date: string
   status: 'requested' | 'confirmed' | 'paid'
   value: number
@@ -129,8 +129,8 @@ const columns = computed(() => {
 </script>
 
 <template>
-  <div class="w-full overflow-x-auto">
-    <UTable :rows="commissions" :columns="columns" class="min-w-full">
+  <div class="w-full overflow-x-auto" style="width: 100%; display: block; min-height: 200px;">
+    <UTable :rows="props.commissions || []" :columns="columns" style="width: 100%; min-width: 100%;">
     <template #date-data="{ row }">
       <span>{{ formatDate(row.date) }}</span>
     </template>

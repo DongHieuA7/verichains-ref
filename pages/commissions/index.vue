@@ -277,48 +277,47 @@ const saveEdit = async () => {
         </div>
       </template>
 
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div class="md:col-span-3">
-          <!-- Row 1: Projects Joined, Total Contract Amount, Pending Contract Amount -->
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <StatisticsCard
-              :title="$t('commissions.projectsJoined')"
-              icon="i-lucide-folders"
-              icon-color="blue"
-              :value="projectCount"
-            />
-            <StatisticsCard
-              :title="$t('commissions.totalContractAmount')"
-              icon="i-lucide-file-text"
-              icon-color="blue"
-              :value-VND="totals.totalContractAmountVND"
-            />
-            <StatisticsCard
-              :title="$t('commissions.pendingContractAmount')"
-              icon="i-lucide-clock"
-              icon-color="yellow"
-              :value-VND="totals.pendingContractAmountVND"
-            />
-          </div>
+      <!-- Statistics Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <StatisticsCard
+          :title="$t('commissions.projectsJoined')"
+          icon="i-lucide-folders"
+          icon-color="blue"
+          :value="projectCount"
+        />
+        <StatisticsCard
+          :title="$t('commissions.totalContractAmount')"
+          icon="i-lucide-file-text"
+          icon-color="blue"
+          :value-VND="totals.totalContractAmountVND"
+        />
+        <StatisticsCard
+          :title="$t('commissions.pendingContractAmount')"
+          icon="i-lucide-clock"
+          icon-color="yellow"
+          :value-VND="totals.pendingContractAmountVND"
+        />
+      </div>
 
-          <!-- Row 2: Received Commission, Pending Commission -->
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <StatisticsCard
-              :title="$t('commissions.receivedCommission')"
-              icon="i-lucide-badge-dollar-sign"
-              icon-color="green"
-              :value-VND="totals.receivedCommissionVND"
-            />
-            <StatisticsCard
-              :title="$t('commissions.pendingCommission')"
-              icon="i-lucide-hourglass"
-              icon-color="orange"
-              :value-VND="totals.pendingCommissionVND"
-            />
-          </div>
-        </div>
-        <div class="md:col-span-3">
-          <div class="flex items-center gap-3 flex-wrap">
+      <!-- Row 2: Received Commission, Pending Commission -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <StatisticsCard
+          :title="$t('commissions.receivedCommission')"
+          icon="i-lucide-badge-dollar-sign"
+          icon-color="green"
+          :value-VND="totals.receivedCommissionVND"
+        />
+        <StatisticsCard
+          :title="$t('commissions.pendingCommission')"
+          icon="i-lucide-hourglass"
+          icon-color="orange"
+          :value-VND="totals.pendingCommissionVND"
+        />
+      </div>
+
+      <!-- Filters -->
+      <div class="mb-4">
+        <div class="flex items-center gap-3 flex-wrap">
             <span class="text-sm text-gray-500 font-medium">{{ $t('common.filter') }}:</span>
             <div class="flex items-center gap-2">
               <span class="text-sm text-gray-600">{{ $t('common.year') }}:</span>
@@ -336,20 +335,20 @@ const saveEdit = async () => {
               <span class="text-sm text-gray-600">{{ $t('common.status') }}:</span>
               <USelect v-model="selectedStatus" :options="statusOptions" :placeholder="$t('common.all')" />
             </div>
-          </div>
         </div>
-        <div class="md:col-span-3 mt-4 w-full">
-          <AdminCommissionsCommissionsTable
-            :commissions="filteredCommissions"
-            :show-project="true"
-            :can-edit="true"
-            :project-ref-info="Object.fromEntries(projects.map(p => [p.id, { ref_percentage: projectRefPercentages[p.id] || 0 }]))"
-            :projects-map="Object.fromEntries(projects.map(p => [p.id, p.name || p.id]))"
-            @edit="openEdit"
-          />
-        </div>
+      </div>
 
-        <UModal v-model="isModalOpen">
+      <!-- Commissions Table -->
+      <AdminCommissionsCommissionsTable
+        :commissions="Array.isArray(filteredCommissions) ? filteredCommissions : []"
+        :show-project="true"
+        :can-edit="true"
+        :project-ref-info="projects.length > 0 ? Object.fromEntries(projects.map(p => [p.id, { ref_percentage: projectRefPercentages[p.id] || 0 }])) : {}"
+        :projects-map="projects.length > 0 ? Object.fromEntries(projects.map(p => [p.id, p.name || p.id])) : {}"
+        @edit="openEdit"
+      />
+
+      <UModal v-model="isModalOpen">
           <UCard>
             <template #header>
               <h3 class="font-semibold">{{ $t('commissions.editCommission') }}</h3>
