@@ -111,6 +111,24 @@ const commissionsByUser = computed<Record<string, Commission[]>>(() => {
   return map
 })
 
+// Calculate total commission amount received (paid status) for each user in this project
+const totalCommissionByUser = computed<Record<string, { amount: number, currency: string }>>(() => {
+  const totals: Record<string, { amount: number, currency: string }> = {}
+  for (const c of commissions.value) {
+    if (c.status === 'paid' && c.project_id === projectId.value) {
+      if (!totals[c.user_id]) {
+        totals[c.user_id] = { amount: 0, currency: c.currency || 'USD' }
+      }
+      totals[c.user_id].amount += Number(c.value || 0)
+      // Keep currency from first commission found
+      if (!totals[c.user_id].currency) {
+        totals[c.user_id].currency = c.currency || 'USD'
+      }
+    }
+  }
+  return totals
+})
+
 const expandedUsers = ref<Set<string>>(new Set())
 const toggleExpand = (uid: string) => {
   const set = new Set(expandedUsers.value)
@@ -946,13 +964,14 @@ const saveCommission = async () => {
                     <th class="py-2">{{ $t('common.status') }}</th>
                     <th class="py-2">{{ $t('projects.joinedRequested') }}</th>
                     <th class="py-2">{{ $t('projects.refPercentage') }}</th>
+                    <th class="py-2">{{ $t('commissions.totalReceived') }}</th>
                     <th class="py-2">{{ $t('common.actions') }}</th>
                   </tr>
                 </thead>
                 <tbody>
                   <template v-if="usersTableData.length === 0">
                     <tr>
-                      <td colspan="7" class="py-8 text-center text-gray-500">
+                      <td colspan="8" class="py-8 text-center text-gray-500">
                         {{ $t('projects.noUsersOrPending') }}
                       </td>
                     </tr>
@@ -990,7 +1009,16 @@ const saveCommission = async () => {
                         />
                       </td>
                       <td class="py-2">{{ formatDate(row.status === 'joined' ? (row.joined_at || '') : (row.requested_at || '')) }}</td>
-                      <td class="py-2">{{ row.ref_percentage }}%</td>
+                      <td class="py-2">
+                        <span v-if="row.ref_percentage && row.ref_percentage > 0">{{ row.ref_percentage }}%</span>
+                        <span v-else class="text-gray-400">—</span>
+                      </td>
+                      <td class="py-2">
+                        <span v-if="row.status === 'joined' && totalCommissionByUser[row.user_id] && totalCommissionByUser[row.user_id].amount > 0">
+                          {{ formatValue(totalCommissionByUser[row.user_id].amount, totalCommissionByUser[row.user_id].currency || 'USD') }}
+                        </span>
+                        <span v-else class="text-gray-400">—</span>
+                      </td>
                       <td class="py-2 flex items-center gap-2">
                         <template v-if="row.status === 'joined'">
                           <UButton 
@@ -1049,7 +1077,7 @@ const saveCommission = async () => {
                     </tr>
                     <tr v-show="row.status === 'joined' && expandedUsers.has(row.user_id)" class="bg-gray-50/40">
                       <td></td>
-                      <td class="py-2" :colspan="6">
+                      <td class="py-2" :colspan="7">
                         <AdminCommissionsCommissionsTable
                           :commissions="commissionsByUser[row.user_id] || []"
                           :can-edit="isProjectAdmin"

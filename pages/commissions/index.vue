@@ -29,7 +29,8 @@ const projects = ref<any[]>([])
 // Store ref_percentage for each project
 const projectRefPercentages = ref<Record<string, number>>({})
 
-const { formatDate, formatValue, formatStatus, statusColor: getStatusColor } = useCommissionFormatters()
+// Format functions - some may still be used in filters/computed
+const { formatDate, formatValue } = useCommissionFormatters()
 
 const fetchProjects = async () => {
   if (!user.value) return
@@ -97,8 +98,6 @@ onMounted(async () => {
   // Don't set default filters - show all commissions
 })
 
-// Format functions - kept for backward compatibility if needed elsewhere
-const { formatDate, formatValue } = useCommissionFormatters()
 const { yearOptions, monthOptions } = useDateFilters(selectedYear, selectedMonth)
 
 const filteredCommissions = computed(() => {
