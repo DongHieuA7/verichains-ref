@@ -340,30 +340,6 @@ const confirmCommission = async (c: Commission) => {
 
 const { formatDate, formatValue, formatStatus } = useCommissionFormatters()
 
-// Get original value for display
-const getOriginalValueDisplay = (commission: Commission) => {
-  return commission.original_value != null ? commission.original_value : commission.value
-}
-
-// Calculate commission received for display
-const getCommissionReceivedDisplay = (commission: Commission) => {
-  // If status is confirmed or paid, use the stored value (already calculated when confirmed)
-  if (commission.status === 'confirmed' || commission.status === 'paid') {
-    return commission.value
-  }
-  
-  // For requested status: only calculate, never use existing value directly
-  // 1. If both contract_amount and commission_rate are available, calculate
-  if (commission.contract_amount != null && commission.commission_rate != null) {
-    return Number(commission.contract_amount || 0) * (Number(commission.commission_rate || 0) / 100)
-  }
-  
-  // 2. Fallback: calculate based on ref_percentage
-  const refInfo = userRefInfo.value[commission.user_id]
-  const refPercentage = refInfo?.ref_percentage || 0
-  const originalValue = commission.original_value != null ? commission.original_value : commission.value
-  return originalValue * (refPercentage / 100)
-}
 
 // Available options excluding existing members
 const availableUserOptions = computed(() => {
@@ -1074,67 +1050,14 @@ const saveCommission = async () => {
                     <tr v-show="row.status === 'joined' && expandedUsers.has(row.user_id)" class="bg-gray-50/40">
                       <td></td>
                       <td class="py-2" :colspan="6">
-                        <UTable :rows="commissionsByUser[row.user_id] || []" :columns="[
-                          { key: 'date', label: $t('common.date') },
-                          { key: 'client_name', label: $t('commissions.clientName') },
-                          { key: 'description', label: $t('common.description') },
-                          { key: 'value', label: $t('commissions.contractAmount') },
-                          { key: 'commission_rate', label: $t('commissions.commissionRate') },
-                          { key: 'commission_received', label: $t('commissions.commissionAmount') },
-                          { key: 'status', label: $t('common.status') },
-                          { key: 'actions', label: $t('common.actions') },
-                        ]">
-                          <template #date-data="{ row }">
-                            <span>{{ formatDate(row.date) }}</span>
-                          </template>
-                          <template #client_name-data="{ row }">
-                            <span>{{ row.client_name || '—' }}</span>
-                          </template>
-                          <template #description-data="{ row }">
-                            <span>{{ row.description || '—' }}</span>
-                          </template>
-                          <template #value-data="{ row }">
-                            <span>{{ formatValue(getOriginalValueDisplay(row), row.currency) }}</span>
-                          </template>
-                          <template #commission_rate-data="{ row }">
-                            <span>{{ row.commission_rate != null ? `${row.commission_rate}%` : '—' }}</span>
-                          </template>
-                          <template #commission_received-data="{ row }">
-                            <span>{{ formatValue(getCommissionReceivedDisplay(row), row.currency) }}</span>
-                          </template>
-                          <template #status-data="{ row }">
-                            <UBadge :label="formatStatus(row.status || 'unknown')" :color="row.status === 'paid' ? 'green' : row.status === 'confirmed' ? 'blue' : 'yellow'" variant="soft" />
-                          </template>
-                          <template #actions-data="{ row }">
-                            <div class="flex gap-2">
-                              <UButton 
-                                size="xs" 
-                                color="gray" 
-                                @click="openEditCommission(row)"
-                                :disabled="!isProjectAdmin"
-                                :title="!isProjectAdmin ? $t('admin.onlyProjectAdminsCanEdit') : ''"
-                              >
-                                {{ $t('common.edit') }}
-                              </UButton>
-                              <UButton 
-                                v-if="row.status === 'requested'" 
-                                size="xs" 
-                                color="green" 
-                                variant="soft"
-                                @click="confirmCommission(row)"
-                                :disabled="!isProjectAdmin"
-                                :title="!isProjectAdmin ? $t('admin.onlyProjectAdminsCanApproveCommissions') : ''"
-                              >
-                                {{ $t('projects.approve') }}
-                              </UButton>
-                            </div>
-                          </template>
-                          <template #empty>
-                            <div class="text-xs text-gray-500 py-4 text-center">
-                              {{ $t('commissions.noCommissions') }}
-                            </div>
-                          </template>
-                        </UTable>
+                        <AdminCommissionsCommissionsTable
+                          :commissions="commissionsByUser[row.user_id] || []"
+                          :can-edit="isProjectAdmin"
+                          :can-approve="isProjectAdmin"
+                          :user-ref-info="userRefInfo"
+                          @edit="openEditCommission"
+                          @approve="confirmCommission"
+                        />
                       </td>
                     </tr>
                     </template>

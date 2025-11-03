@@ -97,40 +97,8 @@ onMounted(async () => {
   // Don't set default filters - show all commissions
 })
 
-const getProjectLabel = (projectId: string) => {
-  return projects.value.find(p => p.id === projectId)?.name || '—'
-}
-
-// Get original value (before calculation)
-const getOriginalValue = (commission: any) => {
-  // If original_value exists, use it (for approved/claimed commissions)
-  if (commission.original_value != null) {
-    return Number(commission.original_value || 0)
-  }
-  // Otherwise, use current value (for requested commissions)
-  return Number(commission.value || 0)
-}
-
-// Calculate commission received
-const getCommissionReceived = (commission: any) => {
-  // If status is confirmed or paid, use the stored value (already calculated when confirmed)
-  if (commission.status === 'confirmed' || commission.status === 'paid') {
-    return Number(commission.value || 0)
-  }
-  
-  // For requested status: only calculate, never use existing value directly
-  // 1. If both contract_amount and commission_rate are available, calculate
-  if (commission.contract_amount != null && commission.commission_rate != null) {
-    return Number(commission.contract_amount || 0) * (Number(commission.commission_rate || 0) / 100)
-  }
-  
-  // 2. Fallback: calculate based on ref_percentage
-  const refPercentage = projectRefPercentages.value[commission.project_id] || 0
-  const originalValue = getOriginalValue(commission)
-  return originalValue * (refPercentage / 100)
-}
-
-const statusColor = getStatusColor
+// Format functions - kept for backward compatibility if needed elsewhere
+const { formatDate, formatValue } = useCommissionFormatters()
 const { yearOptions, monthOptions } = useDateFilters(selectedYear, selectedMonth)
 
 const filteredCommissions = computed(() => {
@@ -407,51 +375,14 @@ const saveEdit = async () => {
           </div>
         </div>
         <div class="md:col-span-3">
-          <UTable :rows="filteredCommissions" :columns="[
-            { key: 'date', label: $t('common.date') },
-            { key: 'project_id', label: $t('common.project') },
-            { key: 'client_name', label: $t('commissions.clientName') },
-            { key: 'description', label: $t('common.description') },
-            { key: 'value', label: $t('commissions.contractAmount') },
-            { key: 'commission_rate', label: $t('commissions.commissionRate') },
-            { key: 'commission_received', label: $t('commissions.commissionAmount') },
-            { key: 'status', label: $t('common.status') },
-            { key: 'actions', label: $t('common.actions') },
-          ]">
-            <template #date-data="{ row }">
-              <span>{{ formatDate(row.date) }}</span>
-            </template>
-            <template #project_id-data="{ row }">
-              <span>{{ getProjectLabel(row.project_id) }}</span>
-            </template>
-            <template #client_name-data="{ row }">
-              <span>{{ row.client_name || '—' }}</span>
-            </template>
-            <template #description-data="{ row }">
-              <span>{{ row.description || '—' }}</span>
-            </template>
-            <template #value-data="{ row }">
-              <span>{{ formatValue(row.contract_amount != null ? row.contract_amount : getOriginalValue(row), row.currency) }}</span>
-            </template>
-            <template #commission_rate-data="{ row }">
-              <span>{{ row.commission_rate != null ? `${row.commission_rate}%` : '—' }}</span>
-            </template>
-            <template #commission_received-data="{ row }">
-              <span>{{ formatValue(getCommissionReceived(row), row.currency) }}</span>
-            </template>
-            <template #status-data="{ row }">
-              <UBadge :label="formatStatus(row.status || 'unknown')" :color="statusColor(row.status)" variant="soft" />
-            </template>
-            <template #actions-data="{ row }">
-              <UButton v-if="row.status === 'requested'" color="gray" size="xs" @click="openEdit(row)">{{ $t('commissions.edit') }}</UButton>
-              <span v-else class="text-xs text-gray-400">—</span>
-            </template>
-            <template #empty>
-              <div class="text-center py-8 text-gray-500">
-                {{ $t('commissions.noCommissions') }}
-              </div>
-            </template>
-          </UTable>
+          <AdminCommissionsCommissionsTable
+            :commissions="filteredCommissions"
+            :show-project="true"
+            :can-edit="true"
+            :project-ref-info="Object.fromEntries(projects.map(p => [p.id, { ref_percentage: projectRefPercentages[p.id] || 0 }]))"
+            :projects-map="Object.fromEntries(projects.map(p => [p.id, p.name || p.id]))"
+            @edit="openEdit"
+          />
         </div>
 
         <UModal v-model="isModalOpen">
