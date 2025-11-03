@@ -27,6 +27,7 @@ interface Props {
   projectRefInfo?: Record<string, { ref_percentage: number }>
   projectsMap?: Record<string, string>
   usersMap?: Record<string, { name?: string | null; email: string }>
+  loading?: boolean
 }
 
 interface Emits {
@@ -43,6 +44,7 @@ const props = withDefaults(defineProps<Props>(), {
   projectRefInfo: () => ({}),
   projectsMap: () => ({}),
   usersMap: () => ({}),
+  loading: false,
 })
 
 const emit = defineEmits<Emits>()
@@ -130,8 +132,12 @@ const columns = computed(() => {
 
 <template>
   <div class="w-full overflow-x-auto" style="width: 100%; display: block; min-height: 200px;">
+    <div v-if="props.loading" class="flex items-center justify-center py-8">
+      <UIcon name="i-lucide-loader-2" class="w-6 h-6 animate-spin text-gray-400" />
+      <span class="ml-2 text-gray-500">{{ $t('common.loading') || 'Loading...' }}</span>
+    </div>
     <UTable 
-      v-if="props.commissions && props.commissions.length > 0"
+      v-else-if="props.commissions && props.commissions.length > 0"
       :rows="props.commissions" 
       :columns="columns" 
       style="width: 100%; min-width: 100%; display: table;"

@@ -295,18 +295,25 @@ const refreshCounts = async () => {
   projectIdToUsersCount.value = counts
 }
 
+const isLoadingProjects = ref(false)
+
 onMounted(async () => {
+  isLoadingProjects.value = true
   // Check if user is global admin
   isGlobalAdminValue.value = await isGlobalAdmin()
   
-  const [{ data: projs }, { data: users }, { data: admins }] = await Promise.all([
-    supabase.from('projects').select('id, name, admins, commission_rate_min, commission_rate_max, policy').order('name'),
-    supabase.from('user_profiles').select('id, email, name'),
-    supabase.from('admins').select('id, email, name, role')
-  ])
-  projects.value = projs || []
-  allUsers.value = users || []
-  allAdmins.value = admins || []
+  try {
+    const [{ data: projs }, { data: users }, { data: admins }] = await Promise.all([
+      supabase.from('projects').select('id, name, admins, commission_rate_min, commission_rate_max, policy').order('name'),
+      supabase.from('user_profiles').select('id, email, name'),
+      supabase.from('admins').select('id, email, name, role')
+    ])
+    projects.value = projs || []
+    allUsers.value = users || []
+    allAdmins.value = admins || []
+  } finally {
+    isLoadingProjects.value = false
+  }
   
   // Pre-check permissions for all projects
   if (currentAdminId.value) {
@@ -337,7 +344,11 @@ onMounted(async () => {
         </div>
       </template>
 
-      <UTable :rows="tableRows" :columns="columns">
+      <div v-if="isLoadingProjects" class="flex items-center justify-center py-12">
+        <UIcon name="i-lucide-loader-2" class="w-8 h-8 animate-spin text-gray-400" />
+        <span class="ml-3 text-gray-500">{{ $t('common.loading') || 'Loading...' }}</span>
+      </div>
+      <UTable v-else :rows="tableRows" :columns="columns">
         <template #name-data="{ row }">
           <NuxtLink class="text-primary hover:underline" :to="{ name: 'admin-projects-id', params: { id: row.id } }">{{ row.name }}</NuxtLink>
         </template>

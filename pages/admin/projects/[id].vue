@@ -464,19 +464,26 @@ const adminLabel = (uid: string) => {
   return a ? (a.name || a.email) : uid
 }
 
+const isLoadingPage = ref(false)
+
 onMounted(async () => {
+  isLoadingPage.value = true
   // Check roles
   isGlobalAdminValue.value = await isGlobalAdmin()
   canManageProjectValue.value = await canManageProject(projectId.value)
   
-  await Promise.all([
-    fetchProject(),
-    fetchAllUsers(),
-    fetchAllAdmins(),
-    fetchUsersInProject(),
-    fetchCommissions(),
-    fetchJoinRequests(),
-  ])
+  try {
+    await Promise.all([
+      fetchProject(),
+      fetchAllUsers(),
+      fetchAllAdmins(),
+      fetchUsersInProject(),
+      fetchCommissions(),
+      fetchJoinRequests(),
+    ])
+  } finally {
+    isLoadingPage.value = false
+  }
   
   // Re-check after project is loaded
   if (project.value) {
@@ -730,6 +737,16 @@ const saveCommission = async () => {
   try {
     let calculatedValue = 0
     
+    // Validate commission_rate within project's allowed range
+    if (project.value) {
+      const min = project.value.commission_rate_min != null ? Number(project.value.commission_rate_min) : 0
+      const max = project.value.commission_rate_max != null ? Number(project.value.commission_rate_max) : 100
+      if (editCommissionDraft.commission_rate != null) {
+        if (editCommissionDraft.commission_rate < min) editCommissionDraft.commission_rate = min
+        if (editCommissionDraft.commission_rate > max) editCommissionDraft.commission_rate = max
+      }
+    }
+
     // Calculate value based on contract_amount and commission_rate (never set manually)
     if (editCommissionDraft.contract_amount != null && editCommissionDraft.commission_rate != null) {
       calculatedValue = Number(editCommissionDraft.contract_amount || 0) * (Number(editCommissionDraft.commission_rate || 0) / 100)
@@ -817,7 +834,12 @@ const saveCommission = async () => {
         </div>
       </template>
 
-      <div class="grid grid-cols-1 gap-6">
+      <div v-if="isLoadingPage" class="flex items-center justify-center py-12">
+        <UIcon name="i-lucide-loader-2" class="w-8 h-8 animate-spin text-gray-400" />
+        <span class="ml-3 text-gray-500">{{ $t('common.loading') || 'Loading...' }}</span>
+      </div>
+
+      <div v-else class="grid grid-cols-1 gap-6">
         <!-- Policy Section -->
         <div class="col-span-1">
           <UCard>
@@ -1006,7 +1028,14 @@ const saveCommission = async () => {
                       </td>
                       <td class="py-2">{{ formatDate(row.status === 'joined' ? (row.joined_at || '') : (row.requested_at || '')) }}</td>
                       <td class="py-2">
-                        <span v-if="row.ref_percentage && row.ref_percentage > 0">{{ row.ref_percentage }}%</span>
+                        <span v-if="project?.commission_rate_min != null || project?.commission_rate_max != null">
+                          <template v-if="project?.commission_rate_min != null && project?.commission_rate_max != null">
+                            {{ project?.commission_rate_min }}% - {{ project?.commission_rate_max }}%
+                          </template>
+                          <template v-else>
+                            {{ (project?.commission_rate_min ?? project?.commission_rate_max) }}%
+                          </template>
+                        </span>
                         <span v-else class="text-gray-400">—</span>
                       </td>
                       <td class="py-2">
@@ -1469,8 +1498,8 @@ const saveCommission = async () => {
                 v-model.number="editCommissionDraft.commission_rate" 
                 type="number" 
                 step="0.01" 
-                min="0" 
-                max="100"
+                :min="project?.commission_rate_min ?? 0" 
+                :max="project?.commission_rate_max ?? 100"
                 :placeholder="$t('commissions.commissionRate')"
               />
               <p class="text-xs text-gray-500 mt-1">

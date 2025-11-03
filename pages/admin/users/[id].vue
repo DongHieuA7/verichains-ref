@@ -51,11 +51,11 @@ const fetchUserProjects = async () => {
     return
   }
   
-  // Fetch project details
+  // Fetch project details including commission rate range
   const projectIds = data.map((r: any) => r.project_id)
   const { data: projects, error: projectsError } = await supabase
     .from('projects')
-    .select('id, name')
+    .select('id, name, commission_rate_min, commission_rate_max')
     .in('id', projectIds)
   
   if (projectsError) {
@@ -292,14 +292,22 @@ watch(userCommissions, () => {
           </template>
           <UTable :rows="userProjects" :columns="[
             { key: 'name', label: $t('common.name') },
-            { key: 'ref_percentage', label: $t('projects.refPercentage') },
+            { key: 'commission_rate', label: $t('projects.refPercentage') },
             { key: 'joined_at', label: $t('projects.joinedRequested') },
           ]">
             <template #joined_at-data="{ row }">
               <span>{{ formatDate(row.joined_at) }}</span>
             </template>
-            <template #ref_percentage-data="{ row }">
-              <span>{{ row.ref_percentage }}%</span>
+            <template #commission_rate-data="{ row }">
+              <span v-if="row.commission_rate_min != null || row.commission_rate_max != null">
+                <template v-if="row.commission_rate_min != null && row.commission_rate_max != null">
+                  {{ row.commission_rate_min }}% - {{ row.commission_rate_max }}%
+                </template>
+                <template v-else>
+                  {{ (row.commission_rate_min ?? row.commission_rate_max) }}%
+                </template>
+              </span>
+              <span v-else class="text-gray-400">—</span>
             </template>
             <template #empty>
               <div class="text-sm text-gray-500 py-4 text-center">

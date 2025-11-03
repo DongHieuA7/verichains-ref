@@ -25,12 +25,19 @@ const form = reactive({
 const isInviteOpen = ref(false)
 const useExistingUser = ref(false)
 
+const isLoadingList = ref(false)
+
 const fetchAdmins = async () => {
-  const { data } = await supabase
-    .from('admins')
-    .select('id, email, name, created_at, role')
-    .order('created_at', { ascending: false })
-  admins.value = data || []
+  isLoadingList.value = true
+  try {
+    const { data } = await supabase
+      .from('admins')
+      .select('id, email, name, created_at, role')
+      .order('created_at', { ascending: false })
+    admins.value = data || []
+  } finally {
+    isLoadingList.value = false
+  }
 }
 
 const fetchUsers = async () => {
@@ -262,7 +269,11 @@ const removeProjectOwner = async (adminId: string) => {
         </div>
       </template>
 
-      <UTable :rows="filteredAdmins" :columns="[
+      <div v-if="isLoadingList" class="flex items-center justify-center py-12">
+        <UIcon name="i-lucide-loader-2" class="w-8 h-8 animate-spin text-gray-400" />
+        <span class="ml-3 text-gray-500">{{ $t('common.loading') || 'Loading...' }}</span>
+      </div>
+      <UTable v-else :rows="filteredAdmins" :columns="[
         { key: 'name', label: $t('common.name') },
         { key: 'email', label: $t('common.email') },
         { key: 'created_at', label: $t('projects.created') },
