@@ -116,12 +116,12 @@ const getProjectName = (projectId: string) => {
 // Format functions
 const { formatDate, formatValue, statusColor: getStatusColor } = useCommissionFormatters()
 
-// Custom formatStatus for this page (uses old status names)
+// Custom formatStatus for this page
 const formatStatus = (status: string) => {
   const statusMap: Record<string, string> = {
     'requested': t('commissions.requested'),
-    'approved': t('commissions.approved'),
-    'claimed': t('commissions.claimed'),
+    'confirmed': t('commissions.confirmed'),
+    'paid': t('commissions.paid'),
   }
   const statusText = statusMap[status] || status
   return statusText.charAt(0).toUpperCase() + statusText.slice(1)
@@ -131,9 +131,9 @@ const statusColor = (status: string) => {
   switch (status) {
     case 'requested':
       return 'yellow'
-    case 'approved':
+    case 'confirmed':
       return 'blue'
-    case 'claimed':
+    case 'paid':
       return 'green'
     default:
       return 'gray'
@@ -147,10 +147,14 @@ const getOriginalValueDisplay = (commission: any) => {
 
 // Calculate commission received for display
 const getCommissionReceivedDisplay = (commission: any) => {
-  if (commission.status === 'approved' || commission.status === 'claimed') {
+  if (commission.status === 'confirmed' || commission.status === 'paid') {
     return commission.value
   }
-  // For requested status, calculate based on ref_percentage from userProjects
+  // For requested status, use contract_amount and commission_rate if available
+  if (commission.contract_amount != null && commission.commission_rate != null) {
+    return Number(commission.contract_amount || 0) * (Number(commission.commission_rate || 0) / 100)
+  }
+  // Fallback: calculate based on ref_percentage from userProjects
   const project = userProjects.value.find(p => p.id === commission.project_id)
   const refPercentage = project?.ref_percentage || 0
   const originalValue = commission.original_value != null ? commission.original_value : commission.value
@@ -171,10 +175,10 @@ const totals = computed(() => {
   const result = {
     totalUSD: 0,
     totalVND: 0,
-    approvedUSD: 0,
-    approvedVND: 0,
-    claimedUSD: 0,
-    claimedVND: 0,
+    confirmedUSD: 0,
+    confirmedVND: 0,
+    paidUSD: 0,
+    paidVND: 0,
   }
   
   for (const c of userCommissions.value) {
@@ -183,47 +187,52 @@ const totals = computed(() => {
     
     if (currency === 'VND') {
       result.totalVND += value
-      if (c.status === 'approved') result.approvedVND += value
-      if (c.status === 'claimed') result.claimedVND += value
+      if (c.status === 'confirmed') result.confirmedVND += value
+      if (c.status === 'paid') result.paidVND += value
     } else {
       result.totalUSD += value
-      if (c.status === 'approved') result.approvedUSD += value
-      if (c.status === 'claimed') result.claimedUSD += value
+      if (c.status === 'confirmed') result.confirmedUSD += value
+      if (c.status === 'paid') result.paidUSD += value
     }
   }
   
   return result
 })
 
-// Approve commission
-const approveCommission = async (commission: any) => {
+// Confirm commission
+const confirmCommission = async (commission: any) => {
   if (commission.status !== 'requested') return
   
-  // Get ref_percentage from user_project_info for this user and project
-  const { data: refData, error: refError } = await supabase
-    .from('user_project_info')
-    .select('ref_percentage')
-    .eq('user_id', userId.value)
-    .eq('project_id', commission.project_id)
-    .single()
-  
-  if (refError) {
-    // Use 0 if not found
+  // Calculate commission amount from contract_amount and commission_rate
+  let calculatedValue = commission.value
+  if (commission.contract_amount != null && commission.commission_rate != null) {
+    calculatedValue = Number(commission.contract_amount || 0) * (Number(commission.commission_rate || 0) / 100)
+  } else {
+    // Fallback: Get ref_percentage from user_project_info
+    const { data: refData, error: refError } = await supabase
+      .from('user_project_info')
+      .select('ref_percentage')
+      .eq('user_id', userId.value)
+      .eq('project_id', commission.project_id)
+      .single()
+    
+    if (refError) {
+      // Use 0 if not found
+    }
+    
+    const refPercentage = refData?.ref_percentage || 0
+    
+    // Get original value (if exists, use it; otherwise use current value)
+    const currentOriginalValue = commission.original_value != null ? Number(commission.original_value || 0) : Number(commission.value || 0)
+    calculatedValue = currentOriginalValue * (refPercentage / 100)
   }
-  
-  const refPercentage = refData?.ref_percentage || 0
-  
-  // Calculate new value: value * (ref_percentage / 100)
-  // Get original value (if exists, use it; otherwise use current value)
-  const currentOriginalValue = commission.original_value != null ? Number(commission.original_value || 0) : Number(commission.value || 0)
-  const approvedValue = currentOriginalValue * (refPercentage / 100)
   
   const { error } = await supabase
     .from('commissions')
     .update({ 
-      status: 'approved',
-      value: approvedValue,
-      original_value: currentOriginalValue // Ensure original_value is stored
+      status: 'confirmed',
+      value: calculatedValue,
+      original_value: commission.contract_amount != null ? commission.contract_amount : (commission.original_value || commission.value) // Store contract_amount as original_value
     })
     .eq('id', commission.id)
   
@@ -334,12 +343,12 @@ watch(userCommissions, () => {
                     <span class="text-sm font-medium text-gray-600">{{ $t('commissions.totalReceived') }}</span>
                   </div>
                   <div class="space-y-1">
-                    <template v-if="totals.claimedUSD > 0">
-                      <div class="text-3xl font-bold text-gray-900">{{ formatValue(totals.claimedUSD, 'USD') }}</div>
-                      <div v-if="totals.claimedVND > 0" class="text-base font-medium text-gray-500">{{ formatValue(totals.claimedVND, 'VND') }}</div>
+                    <template v-if="totals.paidUSD > 0">
+                      <div class="text-3xl font-bold text-gray-900">{{ formatValue(totals.paidUSD, 'USD') }}</div>
+                      <div v-if="totals.paidVND > 0" class="text-base font-medium text-gray-500">{{ formatValue(totals.paidVND, 'VND') }}</div>
                     </template>
-                    <template v-else-if="totals.claimedVND > 0">
-                      <div class="text-3xl font-bold text-gray-900">{{ formatValue(totals.claimedVND, 'VND') }}</div>
+                    <template v-else-if="totals.paidVND > 0">
+                      <div class="text-3xl font-bold text-gray-900">{{ formatValue(totals.paidVND, 'VND') }}</div>
                     </template>
                     <template v-else>
                       <div class="text-3xl font-bold text-gray-400">—</div>
@@ -355,15 +364,15 @@ watch(userCommissions, () => {
                     <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
                       <UIcon name="i-lucide-check-circle" class="w-5 h-5 text-blue-600" />
                     </div>
-                    <span class="text-sm font-medium text-gray-600">{{ $t('commissions.totalClaimed') }}</span>
+                    <span class="text-sm font-medium text-gray-600">{{ $t('commissions.totalPaid') }}</span>
                   </div>
                   <div class="space-y-1">
-                    <template v-if="totals.claimedUSD > 0">
-                      <div class="text-3xl font-bold text-gray-900">{{ formatValue(totals.claimedUSD, 'USD') }}</div>
-                      <div v-if="totals.claimedVND > 0" class="text-base font-medium text-gray-500">{{ formatValue(totals.claimedVND, 'VND') }}</div>
+                    <template v-if="totals.paidUSD > 0">
+                      <div class="text-3xl font-bold text-gray-900">{{ formatValue(totals.paidUSD, 'USD') }}</div>
+                      <div v-if="totals.paidVND > 0" class="text-base font-medium text-gray-500">{{ formatValue(totals.paidVND, 'VND') }}</div>
                     </template>
-                    <template v-else-if="totals.claimedVND > 0">
-                      <div class="text-3xl font-bold text-gray-900">{{ formatValue(totals.claimedVND, 'VND') }}</div>
+                    <template v-else-if="totals.paidVND > 0">
+                      <div class="text-3xl font-bold text-gray-900">{{ formatValue(totals.paidVND, 'VND') }}</div>
                     </template>
                     <template v-else>
                       <div class="text-3xl font-bold text-gray-400">—</div>
@@ -412,7 +421,7 @@ watch(userCommissions, () => {
                 v-if="row.status === 'requested'" 
                 size="xs" 
                 color="primary" 
-                @click="approveCommission(row)"
+                @click="confirmCommission(row)"
               >
                 {{ $t('projects.approve') }}
               </UButton>

@@ -387,7 +387,10 @@ const availableAdminOptions = computed(() => {
 })
 
 const removeUser = async (uid: string) => {
-  if (!isProjectAdmin.value) {
+  // Check permission: Global Admin can always remove, Project Owner can remove if they can manage the project
+  const canRemove = isGlobalAdminValue.value || canManageProjectValue.value
+  
+  if (!canRemove) {
     const toast = useToast()
     toast.add({
       color: 'red',
@@ -404,6 +407,12 @@ const removeUser = async (uid: string) => {
     .eq('user_id', uid)
   
   if (error) {
+    const toast = useToast()
+    toast.add({
+      color: 'red',
+      title: t('messages.failedToRemove'),
+      description: getErrorMessage(error),
+    })
     return
   }
   
@@ -411,6 +420,13 @@ const removeUser = async (uid: string) => {
   const set = new Set(expandedUsers.value)
   if (set.has(uid)) { set.delete(uid); expandedUsers.value = set }
   delete userRefInfo.value[uid]
+  
+  const toast = useToast()
+  toast.add({
+    color: 'green',
+    title: t('messages.success'),
+    description: t('messages.userRemoved'),
+  })
 }
 
 const removeAdmin = async (uid: string) => {
@@ -838,10 +854,10 @@ const saveCommission = async () => {
                   size="xs" 
                   color="primary" 
                   @click="isAddAdminOpen = true"
-                  :disabled="!isProjectAdmin"
-                  :title="!isProjectAdmin ? $t('admin.onlyProjectAdminsCanAddAdmins') : ''"
+                  :disabled="!isGlobalAdminValue && !canManageProjectValue"
+                  :title="(!isGlobalAdminValue && !canManageProjectValue) ? $t('admin.onlyProjectAdminsCanAddAdmins') : ''"
                 >
-                  {{ $t('projects.addAdmin') }}
+                  {{ $t('projects.addProjectOwner') }}
                 </UButton>
               </div>
             </template>
@@ -954,12 +970,7 @@ const saveCommission = async () => {
                         </NuxtLink>
                       </td>
                       <td class="py-2">
-                        <NuxtLink 
-                          class="text-primary hover:underline" 
-                          :to="`/admin/users/${row.user_id}`"
-                        >
-                          {{ allUsers.find(u => u.id === row.user_id)?.email || '-' }}
-                        </NuxtLink>
+                        <span>{{ allUsers.find(u => u.id === row.user_id)?.email || '-' }}</span>
                       </td>
                       <td class="py-2">
                         <UBadge 
@@ -986,8 +997,8 @@ const saveCommission = async () => {
                             color="red" 
                             variant="soft" 
                             @click="removeUser(row.user_id)"
-                            :disabled="!isProjectAdmin"
-                            :title="!isProjectAdmin ? $t('admin.onlyProjectAdminsCanRemoveUsers') : ''"
+                            :disabled="!isGlobalAdminValue && !canManageProjectValue"
+                            :title="!isGlobalAdminValue && !canManageProjectValue ? $t('admin.onlyProjectAdminsCanRemoveUsers') : ''"
                           >
                             {{ $t('common.remove') }}
                           </UButton>
@@ -1118,7 +1129,20 @@ const saveCommission = async () => {
               <UButton 
                 color="primary" 
                 @click="async () => { 
-                  if (!manageState.addUser || usersInProject.includes(manageState.addUser)) return
+                  if (!manageState.addUser) return
+                  
+                  // Check if user already in project
+                  if (usersInProject.includes(manageState.addUser)) {
+                    const toast = useToast()
+                    toast.add({
+                      color: 'yellow',
+                      title: t('messages.userAlreadyInProject'),
+                      description: t('messages.userAlreadyInProject'),
+                    })
+                    isAddUserOpen.value = false
+                    return
+                  }
+                  
                   if (!isProjectAdmin.value) {
                     const toast = useToast()
                     toast.add({
@@ -1150,6 +1174,13 @@ const saveCommission = async () => {
                   await fetchUsersInProject()
                   manageState.addUser = undefined
                   isAddUserOpen.value = false
+                  
+                  const toast = useToast()
+                  toast.add({
+                    color: 'green',
+                    title: t('messages.success'),
+                    description: t('messages.userAddedToProject'),
+                  })
                 }"
                 :disabled="!manageState.addUser || usersInProject.includes(manageState.addUser || '') || !isProjectAdmin"
                 :title="!isProjectAdmin ? $t('admin.onlyProjectAdminsCanAddUsers') : ''"
@@ -1164,14 +1195,14 @@ const saveCommission = async () => {
       <UModal v-model="isAddAdminOpen">
         <UCard>
           <template #header>
-            <h3 class="font-semibold">{{ $t('projects.addAdminToProject') }}</h3>
+            <h3 class="font-semibold">{{ $t('projects.addProjectOwnerToProject') }}</h3>
           </template>
           <div class="space-y-4">
-            <UFormGroup :label="$t('projects.selectAdmin')">
+            <UFormGroup :label="$t('projects.selectProjectOwner')">
               <USelect 
                 v-model="(manageState as any).addAdmin" 
                 :options="availableAdminOptions" 
-                :placeholder="$t('projects.selectAdmin')" 
+                :placeholder="$t('projects.selectProjectOwner')" 
               />
               <p class="text-xs text-gray-500 mt-1">{{ $t('admin.onlyProjectOwnersCanBeAdded') }}</p>
             </UFormGroup>
@@ -1182,7 +1213,50 @@ const saveCommission = async () => {
               <UButton 
                 color="primary" 
                 @click="async () => { 
-                  if (!manageState.addAdmin || !project || !isProjectAdmin.value) return
+                  if (!manageState.addAdmin) {
+                    const toast = useToast()
+                    toast.add({
+                      color: 'yellow',
+                      title: t('messages.selectProjectOwner'),
+                      description: t('messages.pleaseSelectProjectOwner') || 'Please select a project owner',
+                    })
+                    return
+                  }
+                  
+                  if (!project) {
+                    const toast = useToast()
+                    toast.add({
+                      color: 'red',
+                      title: t('messages.failedToAddAdmin'),
+                      description: 'Project not loaded',
+                    })
+                    return
+                  }
+                  
+                  // Check permission: Global Admin can always add, Project Owner can add if they can manage the project
+                  const canAdd = isGlobalAdminValue.value || canManageProjectValue.value
+                  
+                  if (!canAdd) {
+                    const toast = useToast()
+                    toast.add({
+                      color: 'red',
+                      title: t('admin.permissionDenied'),
+                      description: t('admin.onlyProjectAdminsCanAddAdmins'),
+                    })
+                    return
+                  }
+                  
+                  // Check if admin already in project
+                  if (adminsInProject.includes(manageState.addAdmin)) {
+                    const toast = useToast()
+                    toast.add({
+                      color: 'yellow',
+                      title: t('messages.adminAlreadyInProject'),
+                      description: t('messages.adminAlreadyInProject'),
+                    })
+                    isAddAdminOpen.value = false
+                    return
+                  }
                   
                   // Check if trying to add a global admin
                   const adminToAdd = allAdmins.value.find(a => a.id === manageState.addAdmin)
@@ -1195,8 +1269,6 @@ const saveCommission = async () => {
                     })
                     return
                   }
-                  
-                  if (adminsInProject.includes(manageState.addAdmin)) return
                   
                   const next = Array.from(new Set([...(project.admins || []), manageState.addAdmin]))
                   const { error } = await supabase.from('projects').update({ admins: next }).eq('id', projectId.value)
@@ -1215,9 +1287,16 @@ const saveCommission = async () => {
                   adminsInProject.value = next
                   manageState.addAdmin = undefined
                   isAddAdminOpen.value = false
+                  
+                  const toast = useToast()
+                  toast.add({
+                    color: 'green',
+                    title: t('messages.success'),
+                    description: t('messages.projectOwnerAdded'),
+                  })
                 }"
-                :disabled="!manageState.addAdmin || adminsInProject.includes(manageState.addAdmin || '') || !project || !isProjectAdmin"
-                :title="!isProjectAdmin ? $t('admin.onlyProjectAdminsCanAddAdmins') : ''"
+                :disabled="!manageState.addAdmin || adminsInProject.includes(manageState.addAdmin || '') || !project || (!isGlobalAdminValue && !canManageProjectValue)"
+                :title="(!isGlobalAdminValue && !canManageProjectValue) ? $t('admin.onlyProjectAdminsCanAddAdmins') : ''"
               >
                 {{ $t('common.add') }}
               </UButton>
