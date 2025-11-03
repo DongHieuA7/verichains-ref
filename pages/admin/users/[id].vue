@@ -8,6 +8,9 @@ const route = useRoute()
 const supabase = useSupabaseClient()
 const userId = computed(() => route.params.id as string)
 
+// Loading state
+const isLoading = ref(false)
+
 // User profile data
 const userProfile = ref<any>(null)
 const userProjects = ref<any[]>([])
@@ -128,6 +131,7 @@ const totals = computed(() => {
     totalVND: 0,
     confirmedVND: 0,
     paidVND: 0,
+    requestedVND: 0,
   }
   
   for (const c of userCommissions.value) {
@@ -136,6 +140,7 @@ const totals = computed(() => {
     result.totalVND += value
     if (c.status === 'confirmed') result.confirmedVND += value
     if (c.status === 'paid') result.paidVND += value
+    if (c.status === 'requested') result.requestedVND += value
   }
   
   return result
@@ -220,17 +225,22 @@ const confirmCommission = async (commission: any) => {
 }
 
 onMounted(async () => {
-  await Promise.all([
-    fetchUserProfile(),
-    fetchUserProjects(),
-    fetchUserCommissions(),
-  ])
-  await fetchProjectsMap()
-  
-  // Set default month/year
-  const now = new Date()
-  selectedYear.value = now.getFullYear()
-  selectedMonth.value = `${selectedYear.value}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  isLoading.value = true
+  try {
+    await Promise.all([
+      fetchUserProfile(),
+      fetchUserProjects(),
+      fetchUserCommissions(),
+    ])
+    await fetchProjectsMap()
+    
+    // Set default month/year
+    const now = new Date()
+    selectedYear.value = now.getFullYear()
+    selectedMonth.value = `${selectedYear.value}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  } finally {
+    isLoading.value = false
+  }
 })
 
 // Watch for commissions changes to update projects map
@@ -251,7 +261,12 @@ watch(userCommissions, () => {
         </div>
       </template>
 
-      <div class="grid grid-cols-1 gap-6">
+      <div v-if="isLoading" class="flex items-center justify-center py-12">
+        <UIcon name="i-lucide-loader-2" class="w-8 h-8 animate-spin text-gray-400" />
+        <span class="ml-3 text-gray-500">{{ $t('common.loading') || 'Loading...' }}</span>
+      </div>
+
+      <div v-else class="grid grid-cols-1 gap-6">
         <!-- User Info -->
         <UCard>
           <template #header>
@@ -308,7 +323,26 @@ watch(userCommissions, () => {
           </template>
 
           <!-- Statistics -->
-          <AdminCommissionsCommissionStatistics :totals="totals" class="mb-6" />
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <StatisticsCard
+              :title="$t('commissions.totalReceived')"
+              icon="i-lucide-badge-dollar-sign"
+              icon-color="green"
+              :value-VND="totals.paidVND"
+            />
+            <StatisticsCard
+              :title="$t('commissions.pendingCommission')"
+              icon="i-lucide-hourglass"
+              icon-color="orange"
+              :value-VND="totals.confirmedVND"
+            />
+            <StatisticsCard
+              :title="$t('commissions.requested')"
+              icon="i-lucide-clock"
+              icon-color="yellow"
+              :value-VND="totals.requestedVND"
+            />
+          </div>
 
           <!-- Commissions Table (inline) -->
           <UTable 

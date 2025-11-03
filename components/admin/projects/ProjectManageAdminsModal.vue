@@ -56,12 +56,12 @@ const addAdminToProject = async () => {
   if (!props.project || !manageState.addAdmin) return
   
   const canManage = await canManageProject(props.project.id)
-  if (!canManage) {
+  if (!canManage && !props.isGlobalAdmin) {
     const toast = useToast()
     toast.add({
       color: 'red',
       title: t('admin.permissionDenied'),
-      description: props.isGlobalAdmin ? t('admin.onlyGlobalAdminsCanAddAdmins') : t('admin.onlyProjectAdminsCanAddAdmins'),
+      description: t('admin.onlyProjectAdminsCanAddAdmins'),
     })
     return
   }
@@ -118,12 +118,12 @@ const removeAdminFromProject = async (uid: string) => {
   if (!props.project) return
   
   const canManage = await canManageProject(props.project.id)
-  if (!canManage) {
+  if (!canManage && !props.isGlobalAdmin) {
     const toast = useToast()
     toast.add({
       color: 'red',
       title: t('admin.permissionDenied'),
-      description: props.isGlobalAdmin ? t('admin.onlyGlobalAdminsCanRemoveAdmins') : t('admin.onlyProjectAdminsCanRemoveAdmins'),
+      description: t('admin.onlyProjectAdminsCanRemoveAdmins'),
     })
     return
   }

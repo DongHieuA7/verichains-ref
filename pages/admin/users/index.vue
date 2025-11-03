@@ -21,12 +21,19 @@ const isInviteOpen = ref(false)
 const userToDelete = ref<string | null>(null)
 const isDeleteConfirmOpen = ref(false)
 
+const isLoadingUsers = ref(false)
+
 const fetchUsers = async () => {
-  const { data } = await supabase
-    .from('user_profiles')
-    .select('id, email, name, ref_code, created_at')
-    .order('created_at', { ascending: false })
-  users.value = data || []
+  isLoadingUsers.value = true
+  try {
+    const { data } = await supabase
+      .from('user_profiles')
+      .select('id, email, name, ref_code, created_at')
+      .order('created_at', { ascending: false })
+    users.value = data || []
+  } finally {
+    isLoadingUsers.value = false
+  }
 }
 
 const openDeleteConfirm = (userId: string) => {
@@ -133,7 +140,12 @@ const invite = async () => {
         </div>
       </template>
 
-      <div class="grid grid-cols-1 gap-6">
+      <div v-if="isLoadingUsers" class="flex items-center justify-center py-12">
+        <UIcon name="i-lucide-loader-2" class="w-8 h-8 animate-spin text-gray-400" />
+        <span class="ml-3 text-gray-500">{{ $t('common.loading') || 'Loading...' }}</span>
+      </div>
+
+      <div v-else class="grid grid-cols-1 gap-6">
         <div>
           <h3 class="mb-2 font-medium">{{ $t('users.users') }}</h3>
           <UTable :rows="users" :columns="[

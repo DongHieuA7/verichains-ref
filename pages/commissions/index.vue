@@ -8,6 +8,7 @@ const supabase = useSupabaseClient()
 const user = useSupabaseUser()
 
 const isLoading = ref(false)
+const isLoadingData = ref(false)
 const commissions = ref<any[]>([])
 const isModalOpen = ref(false)
 const editDraft = reactive<{ id: string; client_name: string; description: string; contract_amount: number | undefined }>({ id: '', client_name: '', description: '', contract_amount: undefined })
@@ -34,8 +35,9 @@ const { formatDate, formatValue, formatStatus } = useCommissionFormatters()
 const fetchProjects = async () => {
   if (!user.value) return
   
-  // Fetch only projects that the user has joined (from user_project_info)
-  const { data: userProjects, error } = await supabase
+  try {
+    // Fetch only projects that the user has joined (from user_project_info)
+    const { data: userProjects, error } = await supabase
     .from('user_project_info')
     .select('project_id, ref_percentage')
     .eq('user_id', user.value.id)
@@ -79,22 +81,34 @@ const fetchProjects = async () => {
   }
   
   
-  projects.value = data || []
+    projects.value = data || []
+  } catch (error) {
+    projects.value = []
+  }
 }
 
 const fetchCommissions = async () => {
   if (!user.value) return
-  const { data } = await supabase
-    .from('commissions')
-    .select('id, project_id, client_name, description, date, status, value, original_value, currency, contract_amount, commission_rate')
-    .eq('user_id', user.value.id)
-    .order('date', { ascending: false })
-  commissions.value = data || []
+  try {
+    const { data } = await supabase
+      .from('commissions')
+      .select('id, project_id, client_name, description, date, status, value, original_value, currency, contract_amount, commission_rate')
+      .eq('user_id', user.value.id)
+      .order('date', { ascending: false })
+    commissions.value = data || []
+  } catch (error) {
+    commissions.value = []
+  }
 }
 
 onMounted(async () => {
-  await Promise.all([fetchProjects(), fetchCommissions()])
-  // Don't set default filters - show all commissions
+  isLoadingData.value = true
+  try {
+    await Promise.all([fetchProjects(), fetchCommissions()])
+    // Don't set default filters - show all commissions
+  } finally {
+    isLoadingData.value = false
+  }
 })
 
 const { yearOptions, monthOptions } = useDateFilters(selectedYear, selectedMonth)
@@ -331,6 +345,12 @@ const saveEdit = async () => {
         </div>
       </template>
 
+      <div v-if="isLoadingData" class="flex items-center justify-center py-12">
+        <UIcon name="i-lucide-loader-2" class="w-8 h-8 animate-spin text-gray-400" />
+        <span class="ml-3 text-gray-500">{{ $t('common.loading') || 'Loading...' }}</span>
+      </div>
+
+      <template v-else>
       <!-- Statistics Cards -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <StatisticsCard
@@ -506,6 +526,7 @@ const saveEdit = async () => {
             </template>
           </UCard>
         </UModal>
+      </template>
     </UCard>
   </div>
 </template>
