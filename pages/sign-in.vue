@@ -16,35 +16,47 @@
   
   const isLoading = ref(false)
   
-  // Initialize logo path based on current theme
-  const getInitialLogo = () => {
-    if (typeof window === 'undefined') return '/favicon.png'
-    
-    // Check if dark class exists on document
-    const isDark = document.documentElement.classList.contains('dark')
-    return isDark ? '/white-logo.png' : '/favicon.png'
+  const logoPath = ref('/favicon.png')
+
+  // Function to update logo based on current theme
+  const updateLogo = () => {
+    if (process.client) {
+      // Check DOM directly - most reliable
+      const isDark = document.documentElement.classList.contains('dark')
+      logoPath.value = isDark ? '/white-logo.png' : '/favicon.png'
+    } else {
+      // SSR fallback
+      logoPath.value = '/favicon.png'
+    }
   }
 
-  const logoPath = ref(getInitialLogo())
-
-  // Update logo when color mode changes
-  watch(() => colorMode.value, (newValue) => {
-    logoPath.value = newValue === 'dark' ? '/white-logo.png' : '/favicon.png'
+  // Watch colorMode changes
+  watch(() => colorMode.value, () => {
+    updateLogo()
   }, { immediate: true })
 
-  // Watch preference changes
-  watch(() => colorMode.preference, (newPreference) => {
-    if (newPreference && newPreference !== 'system') {
-      logoPath.value = newPreference === 'dark' ? '/white-logo.png' : '/favicon.png'
-    } else if (newPreference === 'system') {
-      logoPath.value = colorMode.value === 'dark' ? '/white-logo.png' : '/favicon.png'
-    }
+  watch(() => colorMode.preference, () => {
+    updateLogo()
   }, { immediate: true })
 
   onMounted(() => {
-    // Double-check on mount
-    const isDark = document.documentElement.classList.contains('dark')
-    logoPath.value = isDark ? '/white-logo.png' : '/favicon.png'
+    // Ensure logo is correct after hydration
+    updateLogo()
+    
+    // Watch for class changes on documentElement (for theme changes)
+    const observer = new MutationObserver(() => {
+      updateLogo()
+    })
+    
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class']
+    })
+    
+    // Cleanup on unmount
+    onUnmounted(() => {
+      observer.disconnect()
+    })
   })
 
   const signInWithGoogle = async () =>  {

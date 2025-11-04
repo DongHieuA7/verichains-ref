@@ -44,6 +44,11 @@ export default defineNuxtConfig({
 		'@nuxt/content',
 		'@nuxtjs/i18n',
 	],
+    colorMode: {
+      preference: 'light', // giá trị mặc định: light/dark/system
+      fallback: 'light',    // nếu browser không hỗ trợ prefers-color-scheme
+      classSuffix: '',      // sẽ thêm class 'dark' hoặc 'light' vào <html>
+    },
 	i18n: {
 		locales: [
 			{
