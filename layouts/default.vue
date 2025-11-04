@@ -1,8 +1,13 @@
 <script setup lang="ts">
 const user = useSupabaseUser()
 const supabase = useSupabaseClient()
+const colorMode = useColorMode()
 
 const { t } = useI18n()
+
+const logoPath = computed(() => {
+  return colorMode.value === 'dark' ? '/white-logo.png' : '/favicon.png'
+})
 
 // User navigation items
 const userNavItems = computed(() => [
@@ -122,13 +127,13 @@ const signOut = async () => {
           <UCard>
             <template #header>
               <div class="flex items-center gap-2">
-                <img src="/favicon.png" alt="Logo" class="w-8 h-8" />
+                <img :src="logoPath" alt="Logo" class="w-8 h-8" />
                 <h3 class="font-semibold">Verichains Referral</h3>
               </div>
             </template>
             <div class="mb-3 flex items-center justify-between">
               <div class="text-sm truncate max-w-[70%]">{{ $t('common.welcome') }}, <strong>{{ user.email }}</strong></div>
-              <UButton color="gray" size="xs" variant="soft" @click="signOut">{{ $t('common.logout') }}</UButton>
+              <UButton color="red" size="xs" variant="soft" @click="signOut">{{ $t('common.logout') }}</UButton>
             </div>
             <div class="mb-3">
               <LanguageSwitcher />

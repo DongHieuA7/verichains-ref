@@ -70,7 +70,15 @@ const filteredProjects = computed(() => {
 
 // Check if current user can manage a project (Global Admin or Project Owner)
 const canManageProjectSync = (project: Project | null): boolean => {
-  return canManageProjectSyncHelper(project, projectPermissions.value)
+  if (!project || !currentAdminId.value) return false
+  // Global admin can manage all projects
+  if (isGlobalAdminValue.value) return true
+  // Use cached permission if available
+  if (projectPermissions.value[project.id] !== undefined) {
+    return projectPermissions.value[project.id]
+  }
+  // Fallback: check if in admins array (for Project Owner)
+  return (project.admins || []).includes(currentAdminId.value)
 }
 
 const columns = computed(() => [
@@ -403,7 +411,7 @@ watch(filteredProjects, () => {
 
       <UTable :rows="tableRows" :columns="columns">
         <template #name-data="{ row }">
-          <NuxtLink class="text-primary hover:underline" :to="{ name: 'admin-projects-id', params: { id: row.id } }">{{ row.name }}</NuxtLink>
+          <NuxtLink class="text-gray-900 dark:text-primary font-medium hover:underline hover:text-primary" :to="{ name: 'admin-projects-id', params: { id: row.id } }">{{ row.name }}</NuxtLink>
         </template>
         <template #commissionRate-data="{ row }">
           <span v-if="row.commission_rate_min != null || row.commission_rate_max != null" class="text-sm">
@@ -426,8 +434,7 @@ watch(filteredProjects, () => {
             </UButton>
             <UButton 
               size="xs" 
-              color="primary" 
-              variant="soft" 
+              color="blue" 
               @click="openManageAdmins(row)"
               :disabled="!canManageProjectSync(row)"
               :title="!canManageProjectSync(row) ? (isGlobalAdminValue ? $t('admin.onlyGlobalAdminsCanManageAdmins') : $t('admin.onlyProjectAdminsCanManageAdmins')) : ''"
@@ -437,7 +444,8 @@ watch(filteredProjects, () => {
             <UButton 
               size="xs" 
               color="gray" 
-              variant="soft" 
+              variant="outline" 
+              class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700"
               @click="openEdit(row)"
               :disabled="!canManageProjectSync(row)"
               :title="!canManageProjectSync(row) ? (isGlobalAdminValue ? $t('admin.onlyGlobalAdminsCanEdit') : $t('admin.onlyProjectAdminsCanEdit')) : ''"
@@ -553,7 +561,7 @@ watch(filteredProjects, () => {
         </template>
         <template #user_id-data="{ row }">
           <NuxtLink 
-            class="text-primary hover:underline" 
+            class="text-gray-900 dark:text-primary font-medium hover:underline hover:text-primary" 
             :to="`/admin/users/${row.user_id}`"
           >
             {{ getUserName(row.user_id) }}
@@ -561,7 +569,7 @@ watch(filteredProjects, () => {
         </template>
         <template #project_id-data="{ row }">
           <NuxtLink 
-            class="text-primary hover:underline" 
+            class="text-gray-900 dark:text-primary font-medium hover:underline hover:text-primary" 
             :to="`/admin/projects/${row.project_id}`"
           >
             {{ getProjectName(row.project_id) }}
@@ -593,6 +601,8 @@ watch(filteredProjects, () => {
           <UButton 
             size="xs" 
             color="gray" 
+            variant="outline" 
+            class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700"
             @click="openEditCommission(row)"
           >
             {{ $t('common.edit') }}
@@ -665,7 +675,8 @@ watch(filteredProjects, () => {
           <div class="flex justify-end gap-2">
             <UButton 
               color="gray" 
-              variant="soft" 
+              variant="outline" 
+              class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700"
               @click="isEditCommissionOpen = false"
             >
               {{ $t('common.cancel') }}

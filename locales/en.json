@@ -22,6 +22,7 @@
     "month": "Month",
     "name": "Name",
     "email": "Email",
+    "role": "Role",
     "project": "Campaign",
     "projects": "Campaigns",
     "users": "Users",

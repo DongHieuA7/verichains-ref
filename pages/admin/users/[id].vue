@@ -371,7 +371,14 @@ watch(userCommissions, () => {
               <span>{{ formatDate(row.date) }}</span>
             </template>
             <template #project_id-data="{ row }">
-              <span>{{ getProjectName(row.project_id) }}</span>
+              <NuxtLink 
+                v-if="row.project_id"
+                class="text-gray-900 dark:text-primary font-medium hover:underline hover:text-primary" 
+                :to="`/admin/projects/${row.project_id}`"
+              >
+                {{ getProjectName(row.project_id) }}
+              </NuxtLink>
+              <span v-else>—</span>
             </template>
             <template #client_name-data="{ row }">
               <span>{{ row.client_name || '—' }}</span>

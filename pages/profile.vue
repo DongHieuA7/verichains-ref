@@ -69,7 +69,7 @@ const saveProfile = async () => {
         <template #header>
           <div class="flex items-center justify-between">
             <h2 class="font-semibold">{{ $t('profile.myProfile') }}</h2>
-            <UButton size="xs" color="gray" variant="soft" @click="openEdit">{{ $t('common.edit') }}</UButton>
+            <UButton size="xs" color="gray" variant="outline" class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700" @click="openEdit">{{ $t('common.edit') }}</UButton>
           </div>
         </template>
         <div class="flex items-center gap-4">

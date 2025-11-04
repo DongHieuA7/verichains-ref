@@ -422,7 +422,7 @@ const saveEdit = async () => {
         </template>
         
         <template #project_id-data="{ row }">
-          <span>{{ getProjectName(row.project_id) }}</span>
+          <span class="text-gray-900 dark:text-primary font-medium">{{ getProjectName(row.project_id) }}</span>
         </template>
         
         <template #client_name-data="{ row }">
@@ -459,6 +459,8 @@ const saveEdit = async () => {
               v-if="row.status === 'requested'"
               size="xs" 
               color="gray" 
+              variant="outline" 
+              class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700"
               @click="openEdit(row)"
             >
               {{ $t('common.edit') }}
@@ -492,7 +494,7 @@ const saveEdit = async () => {
             </div>
             <template #footer>
               <div class="flex justify-end gap-2">
-                <UButton color="gray" variant="soft" @click="isModalOpen = false">{{ $t('common.cancel') }}</UButton>
+                <UButton color="gray" variant="outline" class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700" @click="isModalOpen = false">{{ $t('common.cancel') }}</UButton>
                 <UButton color="primary" @click="saveEdit">{{ $t('common.save') }}</UButton>
               </div>
             </template>
@@ -520,7 +522,7 @@ const saveEdit = async () => {
             </div>
             <template #footer>
               <div class="flex justify-end gap-2">
-                <UButton color="gray" variant="soft" @click="isCreateOpen = false">{{ $t('common.cancel') }}</UButton>
+                <UButton color="gray" variant="outline" class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700" @click="isCreateOpen = false">{{ $t('common.cancel') }}</UButton>
                 <UButton color="primary" @click="submit" :loading="isLoading" :disabled="isLoading || !form.project_id || !form.contract_amount">{{ $t('common.create') }}</UButton>
               </div>
             </template>

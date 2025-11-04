@@ -121,7 +121,7 @@ const saveProject = async () => {
       </div>
       <template #footer>
         <div class="flex justify-end gap-2">
-          <UButton color="gray" variant="soft" @click="isOpen = false">{{ $t('common.cancel') }}</UButton>
+          <UButton color="gray" variant="outline" class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700" @click="isOpen = false">{{ $t('common.cancel') }}</UButton>
           <UButton color="primary" @click="saveProject" :disabled="!draft.name.trim()">{{ $t('common.save') }}</UButton>
         </div>
       </template>

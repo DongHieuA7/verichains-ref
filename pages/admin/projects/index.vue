@@ -46,7 +46,15 @@ const projectPermissions = ref<Record<string, boolean>>({})
 
 // Check if current user can manage a project (Global Admin or Project Owner)
 const canManageProjectSync = (project: Project | null): boolean => {
-  return canManageProjectSyncHelper(project, projectPermissions.value)
+  if (!project || !currentAdminId.value) return false
+  // Global admin can manage all projects
+  if (isGlobalAdminValue.value) return true
+  // Use cached permission if available
+  if (projectPermissions.value[project.id] !== undefined) {
+    return projectPermissions.value[project.id]
+  }
+  // Fallback: check if in admins array (for Project Owner)
+  return (project.admins || []).includes(currentAdminId.value)
 }
 
 const userOptions = computed(() => allUsers.value.map(u => ({ label: u.name || u.email, value: u.id })))
@@ -350,7 +358,7 @@ onMounted(async () => {
       </div>
       <UTable v-else :rows="tableRows" :columns="columns">
         <template #name-data="{ row }">
-          <NuxtLink class="text-primary hover:underline" :to="{ name: 'admin-projects-id', params: { id: row.id } }">{{ row.name }}</NuxtLink>
+          <NuxtLink class="text-gray-900 dark:text-primary font-medium hover:underline hover:text-primary" :to="{ name: 'admin-projects-id', params: { id: row.id } }">{{ row.name }}</NuxtLink>
         </template>
         <template #commissionRate-data="{ row }">
           <span v-if="row.commission_rate_min != null || row.commission_rate_max != null" class="text-sm">
@@ -373,8 +381,7 @@ onMounted(async () => {
             </UButton>
             <UButton 
               size="xs" 
-              color="primary" 
-              variant="soft" 
+              color="blue" 
               @click="openManageAdmins(row)"
               :disabled="!canManageProjectSync(row)"
               :title="!canManageProjectSync(row) ? (isGlobalAdminValue ? $t('admin.onlyGlobalAdminsCanManageAdmins') : $t('admin.onlyProjectAdminsCanManageAdmins')) : ''"
@@ -384,7 +391,8 @@ onMounted(async () => {
             <UButton 
               size="xs" 
               color="gray" 
-              variant="soft" 
+              variant="outline" 
+              class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700"
               @click="openEdit(row)"
               :disabled="!canManageProjectSync(row)"
               :title="!canManageProjectSync(row) ? (isGlobalAdminValue ? $t('admin.onlyGlobalAdminsCanEdit') : $t('admin.onlyProjectAdminsCanEdit')) : ''"
@@ -488,7 +496,7 @@ onMounted(async () => {
         </div>
         <template #footer>
           <div class="flex justify-end gap-2">
-            <UButton color="gray" variant="soft" @click="isCreateOpen = false">{{ $t('common.cancel') }}</UButton>
+            <UButton color="gray" variant="outline" class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700" @click="isCreateOpen = false">{{ $t('common.cancel') }}</UButton>
             <UButton color="primary" @click="createProject" :disabled="!draft.name.trim()">{{ $t('common.create') }}</UButton>
           </div>
         </template>

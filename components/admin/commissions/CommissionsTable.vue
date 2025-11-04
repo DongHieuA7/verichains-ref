@@ -149,7 +149,7 @@ const columns = computed(() => {
     <template v-if="props.showUser" #user_id-data="{ row }">
       <NuxtLink 
         v-if="row.user_id"
-        class="text-primary hover:underline" 
+        class="text-gray-900 dark:text-primary font-medium hover:underline hover:text-primary" 
         :to="`/admin/users/${row.user_id}`"
       >
         {{ getUserName(row.user_id) }}
@@ -160,7 +160,7 @@ const columns = computed(() => {
     <template v-if="props.showProject" #project_id-data="{ row }">
       <NuxtLink 
         v-if="row.project_id"
-        class="text-primary hover:underline" 
+        class="text-gray-900 dark:text-primary font-medium hover:underline hover:text-primary" 
         :to="`/admin/projects/${row.project_id}`"
       >
         {{ getProjectName(row.project_id) }}
@@ -202,6 +202,8 @@ const columns = computed(() => {
           v-if="props.canEdit"
           size="xs" 
           color="gray" 
+          variant="outline" 
+          class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700"
           @click="emit('edit', row)"
         >
           {{ $t('common.edit') }}

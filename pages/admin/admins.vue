@@ -276,29 +276,31 @@ const removeProjectOwner = async (adminId: string) => {
       <UTable v-else :rows="filteredAdmins" :columns="[
         { key: 'name', label: $t('common.name') },
         { key: 'email', label: $t('common.email') },
+        { key: 'role', label: $t('common.role') || 'Role' },
         { key: 'created_at', label: $t('projects.created') },
         { key: 'actions', label: $t('common.actions') },
       ]">
         <template #name-data="{ row }">
-          <div class="flex items-center gap-2">
-            <span>{{ row.name || row.email }}</span>
-            <UBadge 
-              v-if="row.role === 'global_admin'" 
-              color="blue" 
-              variant="soft"
-              size="xs"
-            >
-              {{ $t('admin.globalAdmin') || 'Global Admin' }}
-            </UBadge>
-            <UBadge 
-              v-else-if="row.role === 'project_owner'" 
-              color="gray" 
-              variant="soft"
-              size="xs"
-            >
-              {{ $t('admin.projectOwner') }}
-            </UBadge>
-          </div>
+          <span>{{ row.name || row.email }}</span>
+        </template>
+        <template #role-data="{ row }">
+          <UBadge 
+            v-if="row.role === 'global_admin'" 
+            color="blue" 
+            variant="soft"
+            size="xs"
+          >
+            {{ $t('admin.globalAdmin') || 'Global Admin' }}
+          </UBadge>
+          <UBadge 
+            v-else-if="row.role === 'project_owner'" 
+            color="gray" 
+            variant="soft"
+            size="xs"
+          >
+            {{ $t('admin.projectOwner') }}
+          </UBadge>
+          <span v-else class="text-gray-400 text-sm">—</span>
         </template>
         <template #created_at-data="{ row }">
           <span>{{ formatDate(row.created_at) }}</span>
@@ -358,7 +360,7 @@ const removeProjectOwner = async (adminId: string) => {
         </div>
         <template #footer>
           <div class="flex justify-end gap-2">
-            <UButton color="gray" variant="soft" @click="isInviteOpen = false">{{ $t('common.cancel') }}</UButton>
+            <UButton color="gray" variant="outline" class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700" @click="isInviteOpen = false">{{ $t('common.cancel') }}</UButton>
             <UButton 
               color="primary" 
               @click="inviteAdmin" 

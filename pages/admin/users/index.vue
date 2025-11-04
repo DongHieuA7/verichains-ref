@@ -200,7 +200,7 @@ const invite = async () => {
         </div>
         <template #footer>
           <div class="flex justify-end gap-2">
-            <UButton color="gray" variant="soft" @click="isInviteOpen = false">{{ $t('common.cancel') }}</UButton>
+            <UButton color="gray" variant="outline" class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700" @click="isInviteOpen = false">{{ $t('common.cancel') }}</UButton>
             <UButton color="primary" @click="invite" :loading="isLoading" :disabled="isLoading || !form.email">{{ $t('users.inviteUser') }}</UButton>
           </div>
         </template>
@@ -221,7 +221,7 @@ const invite = async () => {
         </div>
         <template #footer>
           <div class="flex justify-end gap-2">
-            <UButton color="gray" variant="soft" @click="isDeleteConfirmOpen = false">{{ $t('common.cancel') }}</UButton>
+            <UButton color="gray" variant="outline" class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700" @click="isDeleteConfirmOpen = false">{{ $t('common.cancel') }}</UButton>
             <UButton color="red" @click="deleteUser" :loading="isLoading" :disabled="isLoading">{{ $t('common.delete') }}</UButton>
           </div>
         </template>

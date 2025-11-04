@@ -910,29 +910,31 @@ const saveCommission = async () => {
             <UTable :rows="adminsInProject.map(uid => ({ uid }))" :columns="[
               { key: 'name', label: $t('common.name') },
               { key: 'email', label: $t('common.email') },
+              { key: 'role', label: $t('common.role') || 'Role' },
               { key: 'joined', label: $t('common.joined') },
               { key: 'actions', label: $t('common.actions') },
             ]">
               <template #name-data="{ row }">
-                <div class="flex items-center gap-2">
-                  <span>{{ adminLabel(row.uid) }}</span>
-                  <UBadge 
-                    v-if="allAdmins.find(a => a.id === row.uid)?.role === 'global_admin'" 
-                    color="blue" 
-                    variant="soft"
-                    size="xs"
-                  >
-                    {{ $t('admin.globalAdmin') || 'Global Admin' }}
-                  </UBadge>
-                  <UBadge 
-                    v-else-if="allAdmins.find(a => a.id === row.uid)?.role === 'project_owner'" 
-                    color="gray" 
-                    variant="soft"
-                    size="xs"
-                  >
-                    {{ $t('admin.projectOwner') }}
-                  </UBadge>
-                </div>
+                <span>{{ adminLabel(row.uid) }}</span>
+              </template>
+              <template #role-data="{ row }">
+                <UBadge 
+                  v-if="allAdmins.find(a => a.id === row.uid)?.role === 'global_admin'" 
+                  color="blue" 
+                  variant="soft"
+                  size="xs"
+                >
+                  {{ $t('admin.globalAdmin') || 'Global Admin' }}
+                </UBadge>
+                <UBadge 
+                  v-else-if="allAdmins.find(a => a.id === row.uid)?.role === 'project_owner'" 
+                  color="gray" 
+                  variant="soft"
+                  size="xs"
+                >
+                  {{ $t('admin.projectOwner') }}
+                </UBadge>
+                <span v-else class="text-gray-400 text-sm">—</span>
               </template>
               <template #email-data="{ row }">
                 <span>{{ allAdmins.find(a => a.id === row.uid)?.email || '-' }}</span>
@@ -1152,7 +1154,7 @@ const saveCommission = async () => {
                           </template>
                           <template #actions-data="{ row: c }">
                             <div class="flex gap-2">
-                              <UButton v-if="isProjectAdmin" size="xs" color="gray" @click="openEditCommission(c)">{{ $t('common.edit') }}</UButton>
+                              <UButton v-if="isProjectAdmin" size="xs" color="gray" variant="outline" class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700" @click="openEditCommission(c)">{{ $t('common.edit') }}</UButton>
                               <UButton v-if="isProjectAdmin && c.status === 'requested'" size="xs" color="green" variant="soft" @click="confirmCommission(c)">{{ $t('projects.approve') }}</UButton>
                             </div>
                           </template>
@@ -1187,7 +1189,7 @@ const saveCommission = async () => {
           </div>
           <template #footer>
             <div class="flex justify-end gap-2">
-              <UButton color="gray" variant="soft" @click="isAddUserOpen = false">{{ $t('common.cancel') }}</UButton>
+              <UButton color="gray" variant="outline" class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700" @click="isAddUserOpen = false">{{ $t('common.cancel') }}</UButton>
               <UButton 
                 color="primary" 
                 @click="async () => { 
@@ -1270,7 +1272,7 @@ const saveCommission = async () => {
           </div>
           <template #footer>
             <div class="flex justify-end gap-2">
-              <UButton color="gray" variant="soft" @click="isAddAdminOpen = false">{{ $t('common.cancel') }}</UButton>
+              <UButton color="gray" variant="outline" class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700" @click="isAddAdminOpen = false">{{ $t('common.cancel') }}</UButton>
               <UButton 
                 color="primary" 
                 @click="async () => { 
@@ -1379,7 +1381,7 @@ const saveCommission = async () => {
           </div>
           <template #footer>
             <div class="flex justify-end gap-2">
-              <UButton color="gray" variant="soft" @click="isEditRefOpen = false">{{ $t('common.cancel') }}</UButton>
+              <UButton color="gray" variant="outline" class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700" @click="isEditRefOpen = false">{{ $t('common.cancel') }}</UButton>
               <UButton color="primary" :disabled="editRef.value == null" @click="saveEditRef">{{ $t('common.save') }}</UButton>
             </div>
           </template>
@@ -1398,7 +1400,7 @@ const saveCommission = async () => {
           </div>
           <template #footer>
             <div class="flex justify-end gap-2">
-              <UButton color="gray" variant="soft" @click="isEditRequestOpen = false">{{ $t('common.cancel') }}</UButton>
+              <UButton color="gray" variant="outline" class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700" @click="isEditRequestOpen = false">{{ $t('common.cancel') }}</UButton>
               <UButton color="primary" :disabled="editRequest.ref_percentage == null" @click="saveEditRequest">{{ $t('common.save') }}</UButton>
             </div>
           </template>
@@ -1421,7 +1423,7 @@ const saveCommission = async () => {
           </div>
           <template #footer>
             <div class="flex justify-end gap-2">
-              <UButton color="gray" variant="soft" @click="isEditPolicyOpen = false">{{ $t('common.cancel') }}</UButton>
+              <UButton color="gray" variant="outline" class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700" @click="isEditPolicyOpen = false">{{ $t('common.cancel') }}</UButton>
               <UButton color="primary" @click="savePolicy">{{ $t('common.save') }}</UButton>
             </div>
           </template>
@@ -1457,7 +1459,7 @@ const saveCommission = async () => {
           </div>
           <template #footer>
             <div class="flex justify-end gap-2">
-              <UButton color="gray" variant="soft" @click="isEditCommissionRateRangeOpen = false">{{ $t('common.cancel') }}</UButton>
+              <UButton color="gray" variant="outline" class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700" @click="isEditCommissionRateRangeOpen = false">{{ $t('common.cancel') }}</UButton>
               <UButton color="primary" @click="saveCommissionRateRange">{{ $t('common.save') }}</UButton>
             </div>
           </template>
@@ -1522,7 +1524,8 @@ const saveCommission = async () => {
             <div class="flex justify-end gap-2">
               <UButton 
                 color="gray" 
-                variant="soft" 
+                variant="outline" 
+                class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700"
                 @click="isEditCommissionOpen = false"
               >
                 {{ $t('common.cancel') }}
