@@ -5,11 +5,35 @@ const colorMode = useColorMode()
 
 const { t } = useI18n()
 
-const logoPath = computed(() => {
-  // Use preference if available, otherwise fallback to value
-  const mode = colorMode.preference || colorMode.value || 'light'
-  const currentMode = mode === 'system' ? colorMode.value : mode
-  return currentMode === 'dark' ? '/white-logo.png' : '/favicon.png'
+// Initialize logo path based on current theme
+const getInitialLogo = () => {
+  if (typeof window === 'undefined') return '/favicon.png'
+  
+  // Check if dark class exists on document
+  const isDark = document.documentElement.classList.contains('dark')
+  return isDark ? '/white-logo.png' : '/favicon.png'
+}
+
+const logoPath = ref(getInitialLogo())
+
+// Update logo when color mode changes
+watch(() => colorMode.value, (newValue) => {
+  logoPath.value = newValue === 'dark' ? '/white-logo.png' : '/favicon.png'
+}, { immediate: true })
+
+// Watch preference changes
+watch(() => colorMode.preference, (newPreference) => {
+  if (newPreference && newPreference !== 'system') {
+    logoPath.value = newPreference === 'dark' ? '/white-logo.png' : '/favicon.png'
+  } else if (newPreference === 'system') {
+    logoPath.value = colorMode.value === 'dark' ? '/white-logo.png' : '/favicon.png'
+  }
+}, { immediate: true })
+
+onMounted(() => {
+  // Double-check on mount
+  const isDark = document.documentElement.classList.contains('dark')
+  logoPath.value = isDark ? '/white-logo.png' : '/favicon.png'
 })
 
 // User navigation items
@@ -130,7 +154,7 @@ const signOut = async () => {
           <UCard>
             <template #header>
               <div class="flex items-center gap-2">
-                <img :key="colorMode.value" :src="logoPath" alt="Logo" class="w-8 h-8" />
+                <img :src="logoPath" alt="Logo" class="w-8 h-8" />
                 <h3 class="font-semibold">Verichains Referral</h3>
               </div>
             </template>

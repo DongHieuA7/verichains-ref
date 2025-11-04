@@ -16,11 +16,35 @@
   
   const isLoading = ref(false)
   
-  const logoPath = computed(() => {
-    // Use preference if available, otherwise fallback to value
-    const mode = colorMode.preference || colorMode.value || 'light'
-    const currentMode = mode === 'system' ? colorMode.value : mode
-    return currentMode === 'dark' ? '/white-logo.png' : '/favicon.png'
+  // Initialize logo path based on current theme
+  const getInitialLogo = () => {
+    if (typeof window === 'undefined') return '/favicon.png'
+    
+    // Check if dark class exists on document
+    const isDark = document.documentElement.classList.contains('dark')
+    return isDark ? '/white-logo.png' : '/favicon.png'
+  }
+
+  const logoPath = ref(getInitialLogo())
+
+  // Update logo when color mode changes
+  watch(() => colorMode.value, (newValue) => {
+    logoPath.value = newValue === 'dark' ? '/white-logo.png' : '/favicon.png'
+  }, { immediate: true })
+
+  // Watch preference changes
+  watch(() => colorMode.preference, (newPreference) => {
+    if (newPreference && newPreference !== 'system') {
+      logoPath.value = newPreference === 'dark' ? '/white-logo.png' : '/favicon.png'
+    } else if (newPreference === 'system') {
+      logoPath.value = colorMode.value === 'dark' ? '/white-logo.png' : '/favicon.png'
+    }
+  }, { immediate: true })
+
+  onMounted(() => {
+    // Double-check on mount
+    const isDark = document.documentElement.classList.contains('dark')
+    logoPath.value = isDark ? '/white-logo.png' : '/favicon.png'
   })
 
   const signInWithGoogle = async () =>  {
@@ -55,7 +79,7 @@
     <div class="text-center space-y-6 mb-6">
       <div>
         <div class="flex items-center justify-center gap-3 mb-4">
-          <img :key="colorMode.value" :src="logoPath" alt="Logo" class="w-12 h-12" />
+          <img :src="logoPath" alt="Logo" class="w-12 h-12" />
           <h1 class="text-3xl font-bold">{{ $t('home.title') }}</h1>
         </div>
         <p class="text-gray-600 dark:text-white">{{ $t('home.subtitle') }}</p>
