@@ -182,9 +182,9 @@ onMounted(async () => {
             <div v-if="project.policy" class="text-sm">
               <UButton 
                 color="gray" 
-                variant="soft" 
+                variant="outline" 
                 size="xs"
-                class="text-gray-900 dark:text-white"
+                class="bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-gray-200 dark:border-gray-700"
                 @click="openPolicyModal(project)"
               >
                 {{ $t('projects.viewPolicy') }}
@@ -234,10 +234,10 @@ onMounted(async () => {
             <div v-if="selectedProjectData?.policy" class="text-sm">
               <UButton 
                 color="gray" 
-                variant="soft" 
+                variant="outline" 
                 size="xs"
                 @click="() => { isRequestOpen = false; openPolicyModal(selectedProjectData); }"
-                class="w-full text-gray-900 dark:text-white"
+                class="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-gray-200 dark:border-gray-700"
               >
                 {{ $t('projects.viewPolicy') }}
               </UButton>
