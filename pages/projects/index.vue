@@ -228,7 +228,7 @@ onMounted(async () => {
                   disabled
                   class="bg-gray-50 flex-1"
                 />
-                <span class="text-xs text-gray-500">({{ $t('common.readOnly') || 'Read-only' }})</span>
+                <span class="text-xs text-gray-500 dark:text-gray-400">({{ $t('common.readOnly') || 'Read-only' }})</span>
               </div>
             </UFormGroup>
             
@@ -251,7 +251,7 @@ onMounted(async () => {
                 :placeholder="$t('projects.whyJoin')"
                 :rows="3"
               />
-              <p class="text-xs text-gray-500 mt-1">{{ $t('projects.messageOptional') || 'Optional message explaining why you want to join this project' }}</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ $t('projects.messageOptional') || 'Optional message explaining why you want to join this project' }}</p>
             </UFormGroup>
           </div>
         <template #footer>
@@ -279,7 +279,7 @@ onMounted(async () => {
           <h3 class="font-semibold">{{ $t('projects.policy') }} - {{ selectedProjectData?.name }}</h3>
         </template>
         <div class="space-y-4">
-          <div class="whitespace-pre-wrap text-sm text-gray-700">
+          <div class="whitespace-pre-wrap text-sm text-gray-700 dark:text-white">
             {{ selectedProjectData?.policy || $t('common.noData') }}
           </div>
         </div>

@@ -149,7 +149,7 @@ const columns = computed(() => {
     <template v-if="props.showUser" #user_id-data="{ row }">
       <NuxtLink 
         v-if="row.user_id"
-        class="text-gray-900 dark:text-primary font-bold dark:font-medium hover:underline hover:text-primary" 
+        class="text-primary dark:text-primary font-bold hover:underline" 
         :to="`/admin/users/${row.user_id}`"
       >
         {{ getUserName(row.user_id) }}
@@ -160,7 +160,7 @@ const columns = computed(() => {
     <template v-if="props.showProject" #project_id-data="{ row }">
       <NuxtLink 
         v-if="row.project_id"
-        class="text-gray-900 dark:text-primary font-bold dark:font-medium hover:underline hover:text-primary" 
+        class="text-primary dark:text-primary font-bold hover:underline" 
         :to="`/admin/projects/${row.project_id}`"
       >
         {{ getProjectName(row.project_id) }}
@@ -222,7 +222,7 @@ const columns = computed(() => {
     </template>
     
     </UTable>
-    <div v-else class="text-sm text-gray-500 py-8 text-center">
+    <div v-else class="text-sm text-gray-500 dark:text-white py-8 text-center">
       {{ $t('commissions.noCommissions') }}
     </div>
   </div>

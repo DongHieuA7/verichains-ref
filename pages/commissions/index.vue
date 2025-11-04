@@ -392,21 +392,21 @@ const saveEdit = async () => {
       <!-- Filters -->
       <div class="mb-4">
         <div class="flex items-center gap-3 flex-wrap">
-            <span class="text-sm text-gray-500 font-medium">{{ $t('common.filter') }}:</span>
+            <span class="text-sm text-gray-500 dark:text-white font-medium">{{ $t('common.filter') }}:</span>
             <div class="flex items-center gap-2">
-              <span class="text-sm text-gray-600">{{ $t('common.year') }}:</span>
+              <span class="text-sm text-gray-600 dark:text-white">{{ $t('common.year') }}:</span>
               <USelect v-model="selectedYear" :options="yearOptions" />
             </div>
             <div class="flex items-center gap-2">
-              <span class="text-sm text-gray-600">{{ $t('common.month') }}:</span>
+              <span class="text-sm text-gray-600 dark:text-white">{{ $t('common.month') }}:</span>
               <USelect v-model="selectedMonth" :options="monthOptions" />
             </div>
             <div class="flex items-center gap-2">
-              <span class="text-sm text-gray-600">{{ $t('common.project') }}:</span>
+              <span class="text-sm text-gray-600 dark:text-white">{{ $t('common.project') }}:</span>
               <USelect v-model="selectedProject" :options="projectOptions" :placeholder="$t('common.all')" />
             </div>
             <div class="flex items-center gap-2">
-              <span class="text-sm text-gray-600">{{ $t('common.status') }}:</span>
+              <span class="text-sm text-gray-600 dark:text-white">{{ $t('common.status') }}:</span>
               <USelect v-model="selectedStatus" :options="statusOptions" :placeholder="$t('common.all')" />
             </div>
         </div>
@@ -470,7 +470,7 @@ const saveEdit = async () => {
         </template>
         
         <template #empty>
-          <div class="text-sm text-gray-500 py-8 text-center">
+          <div class="text-sm text-gray-500 dark:text-white py-8 text-center">
             {{ $t('commissions.noCommissions') }}
           </div>
         </template>

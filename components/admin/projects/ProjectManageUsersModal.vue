@@ -182,7 +182,7 @@ const saveUsers = () => {
             <UButton size="2xs" color="red" variant="link" @click="removeUserFromProject(uid)">×</UButton>
           </UBadge>
         </div>
-        <div v-else class="text-sm text-gray-500 text-center py-4">
+        <div v-else class="text-sm text-gray-500 dark:text-white text-center py-4">
           {{ $t('projects.noUsers') }}
         </div>
       </div>

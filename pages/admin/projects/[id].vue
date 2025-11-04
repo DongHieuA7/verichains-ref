@@ -823,11 +823,11 @@ const saveCommission = async () => {
       <template #header>
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-3">
-            <NuxtLink class="text-sm text-gray-500 hover:underline" to="/admin/projects">← {{ $t('common.back') }}</NuxtLink>
+            <NuxtLink class="text-sm text-gray-500 dark:text-white hover:underline" to="/admin/projects">← {{ $t('common.back') }}</NuxtLink>
             <h2 class="font-semibold">{{ $t('admin.projectDetailTitle', { name: project?.name || projectId }) }}</h2>
           </div>
           <div class="flex items-center gap-3">
-            <span class="text-sm text-gray-500">{{ $t('common.filter') }}</span>
+            <span class="text-sm text-gray-500 dark:text-white">{{ $t('common.filter') }}</span>
             <USelect v-model="selectedYear" :options="yearOptions" />
             <USelect v-model="selectedMonth" :options="monthOptions" />
           </div>
@@ -1012,7 +1012,7 @@ const saveCommission = async () => {
                       </td>
                       <td class="py-2 font-medium">
                         <NuxtLink 
-                          class="text-gray-900 dark:text-primary hover:underline font-bold dark:font-medium" 
+                          class="text-primary dark:text-primary hover:underline font-bold" 
                           :to="`/admin/users/${row.user_id}`"
                         >
                           {{ userLabel(row.user_id) }}
@@ -1161,7 +1161,7 @@ const saveCommission = async () => {
                             </div>
                           </template>
                           <template #empty>
-                            <div class="text-sm text-gray-500 py-4 text-center">{{ $t('commissions.noCommissions') }}</div>
+                            <div class="text-sm text-gray-500 dark:text-white py-4 text-center">{{ $t('commissions.noCommissions') }}</div>
                           </template>
                         </UTable>
                       </td>
@@ -1506,7 +1506,7 @@ const saveCommission = async () => {
                 :max="project?.commission_rate_max ?? 100"
                 :placeholder="$t('commissions.commissionRate')"
               />
-              <p class="text-xs text-gray-500 mt-1">
+              <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 {{ $t('commissions.commissionAmount') }}: {{ formatValue(calculateCommissionAmount(), 'VND') }}
               </p>
             </UFormGroup>

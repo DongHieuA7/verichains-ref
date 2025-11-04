@@ -358,7 +358,7 @@ onMounted(async () => {
       </div>
       <UTable v-else :rows="tableRows" :columns="columns">
         <template #name-data="{ row }">
-          <NuxtLink class="text-gray-900 dark:text-primary font-bold dark:font-medium hover:underline hover:text-primary" :to="{ name: 'admin-projects-id', params: { id: row.id } }">{{ row.name }}</NuxtLink>
+          <NuxtLink class="text-primary dark:text-primary font-bold hover:underline" :to="{ name: 'admin-projects-id', params: { id: row.id } }">{{ row.name }}</NuxtLink>
         </template>
         <template #commissionRate-data="{ row }">
           <span v-if="row.commission_rate_min != null || row.commission_rate_max != null" class="text-sm text-gray-900 dark:text-white">
@@ -480,7 +480,7 @@ onMounted(async () => {
               }"
               class="w-full"
             />
-            <p class="text-xs text-gray-500 mt-1">{{ $t('projects.selectOwnersNote') }}</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ $t('projects.selectOwnersNote') }}</p>
           </UFormGroup>
           <UFormGroup :label="$t('projects.addUsers')">
             <USelectMenu 
@@ -497,7 +497,7 @@ onMounted(async () => {
               }"
               class="w-full"
             />
-            <p class="text-xs text-gray-500 mt-1">{{ $t('projects.usersNote') }}</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ $t('projects.usersNote') }}</p>
           </UFormGroup>
         </div>
         <template #footer>

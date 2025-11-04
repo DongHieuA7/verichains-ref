@@ -411,7 +411,7 @@ watch(filteredProjects, () => {
 
       <UTable :rows="tableRows" :columns="columns">
         <template #name-data="{ row }">
-          <NuxtLink class="text-gray-900 dark:text-primary font-bold dark:font-medium hover:underline hover:text-primary" :to="{ name: 'admin-projects-id', params: { id: row.id } }">{{ row.name }}</NuxtLink>
+          <NuxtLink class="text-primary dark:text-primary font-bold hover:underline" :to="{ name: 'admin-projects-id', params: { id: row.id } }">{{ row.name }}</NuxtLink>
         </template>
         <template #commissionRate-data="{ row }">
           <span v-if="row.commission_rate_min != null || row.commission_rate_max != null" class="text-sm text-gray-900 dark:text-white">
@@ -567,7 +567,7 @@ watch(filteredProjects, () => {
         </template>
         <template #user_id-data="{ row }">
           <NuxtLink 
-            class="text-gray-900 dark:text-primary font-bold dark:font-medium hover:underline hover:text-primary" 
+            class="text-primary dark:text-primary font-bold hover:underline" 
             :to="`/admin/users/${row.user_id}`"
           >
             {{ getUserName(row.user_id) }}
@@ -575,7 +575,7 @@ watch(filteredProjects, () => {
         </template>
         <template #project_id-data="{ row }">
           <NuxtLink 
-            class="text-gray-900 dark:text-primary font-bold dark:font-medium hover:underline hover:text-primary" 
+            class="text-primary dark:text-primary font-bold hover:underline" 
             :to="`/admin/projects/${row.project_id}`"
           >
             {{ getProjectName(row.project_id) }}
@@ -661,7 +661,7 @@ watch(filteredProjects, () => {
               max="100"
               :placeholder="$t('commissions.commissionRate')"
             />
-            <p class="text-xs text-gray-500 mt-1">
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
               {{ $t('commissions.commissionAmount') }}: {{ formatValue(calculateCommissionAmount(), 'VND') }}
             </p>
           </UFormGroup>

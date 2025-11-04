@@ -376,7 +376,7 @@ watch(userCommissions, () => {
             <template #project_id-data="{ row }">
               <NuxtLink 
                 v-if="row.project_id"
-                class="text-gray-900 dark:text-primary font-bold dark:font-medium hover:underline hover:text-primary" 
+                class="text-primary dark:text-primary font-bold hover:underline" 
                 :to="`/admin/projects/${row.project_id}`"
               >
                 {{ getProjectName(row.project_id) }}
