@@ -358,15 +358,21 @@ onMounted(async () => {
       </div>
       <UTable v-else :rows="tableRows" :columns="columns">
         <template #name-data="{ row }">
-          <NuxtLink class="text-gray-900 dark:text-primary font-medium hover:underline hover:text-primary" :to="{ name: 'admin-projects-id', params: { id: row.id } }">{{ row.name }}</NuxtLink>
+          <NuxtLink class="text-gray-900 dark:text-primary font-bold dark:font-medium hover:underline hover:text-primary" :to="{ name: 'admin-projects-id', params: { id: row.id } }">{{ row.name }}</NuxtLink>
         </template>
         <template #commissionRate-data="{ row }">
-          <span v-if="row.commission_rate_min != null || row.commission_rate_max != null" class="text-sm">
+          <span v-if="row.commission_rate_min != null || row.commission_rate_max != null" class="text-sm text-gray-900 dark:text-white">
             {{ row.commission_rate_min != null ? `${row.commission_rate_min}%` : '' }}
             <span v-if="row.commission_rate_min != null && row.commission_rate_max != null"> - </span>
             {{ row.commission_rate_max != null ? `${row.commission_rate_max}%` : '' }}
           </span>
-          <span v-else class="text-gray-400 text-sm">—</span>
+          <span v-else class="text-gray-400 dark:text-gray-500 text-sm">—</span>
+        </template>
+        <template #usersCount-data="{ row }">
+          <span class="text-gray-900 dark:text-white">{{ row.usersCount }}</span>
+        </template>
+        <template #adminsCount-data="{ row }">
+          <span class="text-gray-900 dark:text-white">{{ row.adminsCount }}</span>
         </template>
         <template #actions-data="{ row }">
           <div class="flex gap-2">

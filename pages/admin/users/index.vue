@@ -157,17 +157,20 @@ const invite = async () => {
           ]">
             <template #name-data="{ row }">
               <NuxtLink 
-                class="text-primary hover:underline font-medium" 
+                class="text-gray-900 dark:text-primary hover:underline font-medium" 
                 :to="`/admin/users/${row.id}`"
               >
                 {{ row.name || row.email }}
               </NuxtLink>
             </template>
             <template #email-data="{ row }">
-              <span>{{ row.email }}</span>
+              <span class="text-gray-900 dark:text-white">{{ row.email }}</span>
+            </template>
+            <template #ref_code-data="{ row }">
+              <span class="text-gray-900 dark:text-white">{{ row.ref_code || '—' }}</span>
             </template>
             <template #created_at-data="{ row }">
-              <span>{{ formatDate(row.created_at) }}</span>
+              <span class="text-gray-900 dark:text-white">{{ formatDate(row.created_at) }}</span>
             </template>
             <template #actions-data="{ row }">
               <div class="flex gap-2">

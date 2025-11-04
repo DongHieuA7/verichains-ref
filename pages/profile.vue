@@ -77,15 +77,15 @@ const saveProfile = async () => {
             {{ profile.name.split(' ').map(p => p[0]).slice(0,2).join('') }}
           </div>
           <div class="min-w-0">
-            <div class="font-medium truncate">{{ profile.name }}</div>
-            <div class="text-sm text-gray-500 truncate">{{ profile.email }}</div>
+            <div class="font-medium truncate text-gray-900 dark:text-white">{{ profile.name }}</div>
+            <div class="text-sm text-gray-500 dark:text-gray-400 truncate">{{ profile.email }}</div>
           </div>
         </div>
           <div class="mt-4 space-y-2 text-sm">
-          <div><span class="text-gray-500">{{ $t('profile.company') }}:</span> <span class="font-medium">{{ profile.company }}</span></div>
-          <div><span class="text-gray-500">{{ $t('profile.about') }}:</span> <span class="font-medium break-words">{{ profile.descript }}</span></div>
+          <div><span class="text-gray-500 dark:text-gray-400">{{ $t('profile.company') }}:</span> <span class="font-medium text-gray-900 dark:text-white">{{ profile.company }}</span></div>
+          <div><span class="text-gray-500 dark:text-gray-400">{{ $t('profile.about') }}:</span> <span class="font-medium break-words text-gray-900 dark:text-white">{{ profile.descript }}</span></div>
           <div>
-            <span class="text-gray-500">{{ $t('profile.referralCode') }}:</span>
+            <span class="text-gray-500 dark:text-gray-400">{{ $t('profile.referralCode') }}:</span>
             <UBadge color="primary" variant="soft" :label="profile.ref_code" />
           </div>
         </div>

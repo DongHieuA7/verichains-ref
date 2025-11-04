@@ -273,15 +273,15 @@ watch(userCommissions, () => {
             <h3 class="font-medium">{{ $t('users.userProfile') }}</h3>
           </template>
           <div class="space-y-2 text-sm" v-if="userProfile">
-            <div><span class="text-gray-500">{{ $t('common.name') }}:</span> <span class="font-medium">{{ userProfile.name || '—' }}</span></div>
-            <div><span class="text-gray-500">{{ $t('common.email') }}:</span> <span class="font-medium">{{ userProfile.email }}</span></div>
-            <div><span class="text-gray-500">{{ $t('profile.company') }}:</span> <span class="font-medium">{{ userProfile.company || '—' }}</span></div>
-            <div><span class="text-gray-500">{{ $t('profile.about') }}:</span> <span class="font-medium">{{ userProfile.descript || '—' }}</span></div>
+            <div><span class="text-gray-500 dark:text-gray-400">{{ $t('common.name') }}:</span> <span class="font-medium text-gray-900 dark:text-white">{{ userProfile.name || '—' }}</span></div>
+            <div><span class="text-gray-500 dark:text-gray-400">{{ $t('common.email') }}:</span> <span class="font-medium text-gray-900 dark:text-white">{{ userProfile.email }}</span></div>
+            <div><span class="text-gray-500 dark:text-gray-400">{{ $t('profile.company') }}:</span> <span class="font-medium text-gray-900 dark:text-white">{{ userProfile.company || '—' }}</span></div>
+            <div><span class="text-gray-500 dark:text-gray-400">{{ $t('profile.about') }}:</span> <span class="font-medium text-gray-900 dark:text-white">{{ userProfile.descript || '—' }}</span></div>
             <div>
-              <span class="text-gray-500">{{ $t('profile.referralCode') }}:</span>
+              <span class="text-gray-500 dark:text-gray-400">{{ $t('profile.referralCode') }}:</span>
               <UBadge color="primary" variant="soft" :label="userProfile.ref_code" />
             </div>
-            <div><span class="text-gray-500">{{ $t('projects.created') }}:</span> <span class="font-medium">{{ formatDate(userProfile.created_at) }}</span></div>
+            <div><span class="text-gray-500 dark:text-gray-400">{{ $t('projects.created') }}:</span> <span class="font-medium text-gray-900 dark:text-white">{{ formatDate(userProfile.created_at) }}</span></div>
           </div>
         </UCard>
 
@@ -295,11 +295,14 @@ watch(userCommissions, () => {
             { key: 'commission_rate', label: $t('projects.refPercentage') },
             { key: 'joined_at', label: $t('projects.joinedRequested') },
           ]">
+            <template #name-data="{ row }">
+              <span class="text-gray-900 dark:text-white">{{ row.name }}</span>
+            </template>
             <template #joined_at-data="{ row }">
-              <span>{{ formatDate(row.joined_at) }}</span>
+              <span class="text-gray-900 dark:text-white">{{ formatDate(row.joined_at) }}</span>
             </template>
             <template #commission_rate-data="{ row }">
-              <span v-if="row.commission_rate_min != null || row.commission_rate_max != null">
+              <span v-if="row.commission_rate_min != null || row.commission_rate_max != null" class="text-gray-900 dark:text-white">
                 <template v-if="row.commission_rate_min != null && row.commission_rate_max != null">
                   {{ row.commission_rate_min }}% - {{ row.commission_rate_max }}%
                 </template>
@@ -307,7 +310,7 @@ watch(userCommissions, () => {
                   {{ (row.commission_rate_min ?? row.commission_rate_max) }}%
                 </template>
               </span>
-              <span v-else class="text-gray-400">—</span>
+              <span v-else class="text-gray-400 dark:text-gray-500">—</span>
             </template>
             <template #empty>
               <div class="text-sm text-gray-500 py-4 text-center">
@@ -368,12 +371,12 @@ watch(userCommissions, () => {
             ]"
           >
             <template #date-data="{ row }">
-              <span>{{ formatDate(row.date) }}</span>
+              <span class="text-gray-900 dark:text-white">{{ formatDate(row.date) }}</span>
             </template>
             <template #project_id-data="{ row }">
               <NuxtLink 
                 v-if="row.project_id"
-                class="text-gray-900 dark:text-primary font-medium hover:underline hover:text-primary" 
+                class="text-gray-900 dark:text-primary font-bold dark:font-medium hover:underline hover:text-primary" 
                 :to="`/admin/projects/${row.project_id}`"
               >
                 {{ getProjectName(row.project_id) }}
@@ -381,19 +384,19 @@ watch(userCommissions, () => {
               <span v-else>—</span>
             </template>
             <template #client_name-data="{ row }">
-              <span>{{ row.client_name || '—' }}</span>
+              <span class="text-gray-900 dark:text-white">{{ row.client_name || '—' }}</span>
             </template>
             <template #description-data="{ row }">
-              <span>{{ row.description || '—' }}</span>
+              <span class="text-gray-900 dark:text-white">{{ row.description || '—' }}</span>
             </template>
             <template #value-data="{ row }">
-              <span>{{ formatValue(getOriginalValueDisplay(row), row.currency || 'VND') }}</span>
+              <span class="text-gray-900 dark:text-white">{{ formatValue(getOriginalValueDisplay(row), row.currency || 'VND') }}</span>
             </template>
             <template #commission_rate-data="{ row }">
-              <span>{{ row.commission_rate != null ? `${row.commission_rate}%` : '—' }}</span>
+              <span class="text-gray-900 dark:text-white">{{ row.commission_rate != null ? `${row.commission_rate}%` : '—' }}</span>
             </template>
             <template #commission_received-data="{ row }">
-              <span>{{ formatValue(getCommissionReceivedDisplay(row), row.currency || 'VND') }}</span>
+              <span class="text-gray-900 dark:text-white">{{ formatValue(getCommissionReceivedDisplay(row), row.currency || 'VND') }}</span>
             </template>
             <template #status-data="{ row }">
               <UBadge 
@@ -413,7 +416,7 @@ watch(userCommissions, () => {
                 >
                   {{ $t('projects.approve') }}
                 </UButton>
-                <span v-else class="text-xs text-gray-400">—</span>
+                <span v-else class="text-xs text-gray-400 dark:text-gray-500">—</span>
               </div>
             </template>
             <template #empty>

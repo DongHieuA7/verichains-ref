@@ -281,7 +281,10 @@ const removeProjectOwner = async (adminId: string) => {
         { key: 'actions', label: $t('common.actions') },
       ]">
         <template #name-data="{ row }">
-          <span>{{ row.name || row.email }}</span>
+          <span class="text-gray-900 dark:text-white">{{ row.name || row.email }}</span>
+        </template>
+        <template #email-data="{ row }">
+          <span class="text-gray-900 dark:text-white">{{ row.email }}</span>
         </template>
         <template #role-data="{ row }">
           <UBadge 
@@ -300,10 +303,10 @@ const removeProjectOwner = async (adminId: string) => {
           >
             {{ $t('admin.projectOwner') }}
           </UBadge>
-          <span v-else class="text-gray-400 text-sm">—</span>
+          <span v-else class="text-gray-400 dark:text-gray-500 text-sm">—</span>
         </template>
         <template #created_at-data="{ row }">
-          <span>{{ formatDate(row.created_at) }}</span>
+          <span class="text-gray-900 dark:text-white">{{ formatDate(row.created_at) }}</span>
         </template>
         <template #actions-data="{ row }">
           <UButton 
@@ -318,7 +321,7 @@ const removeProjectOwner = async (adminId: string) => {
           >
             {{ $t('common.remove') }}
           </UButton>
-          <span v-else-if="row.role === 'global_admin' || row.id === currentAdminId" class="text-gray-400 text-sm">
+          <span v-else-if="row.role === 'global_admin' || row.id === currentAdminId" class="text-gray-400 dark:text-gray-500 text-sm">
             -
           </span>
         </template>

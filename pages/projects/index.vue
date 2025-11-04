@@ -164,14 +164,14 @@ onMounted(async () => {
           </template>
           
           <div class="space-y-3">
-            <div class="text-sm text-gray-500">
+            <div class="text-sm text-gray-500 dark:text-gray-400">
               {{ $t('projects.created') }}: {{ new Date(project.created_at).toLocaleDateString('en-GB') }}
             </div>
             
             <!-- Commission Rate Range -->
             <div v-if="project.commission_rate_min != null || project.commission_rate_max != null" class="text-sm">
-              <span class="font-medium text-gray-700">{{ $t('projects.commissionRateRange') }}:</span>
-              <span class="text-gray-600 ml-1">
+              <span class="font-medium text-gray-700 dark:text-gray-300">{{ $t('projects.commissionRateRange') }}:</span>
+              <span class="text-gray-600 dark:text-gray-300 ml-1">
                 {{ project.commission_rate_min != null ? `${project.commission_rate_min}%` : '' }}
                 <span v-if="project.commission_rate_min != null && project.commission_rate_max != null"> - </span>
                 {{ project.commission_rate_max != null ? `${project.commission_rate_max}%` : '' }}

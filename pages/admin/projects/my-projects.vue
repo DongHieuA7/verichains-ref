@@ -411,15 +411,21 @@ watch(filteredProjects, () => {
 
       <UTable :rows="tableRows" :columns="columns">
         <template #name-data="{ row }">
-          <NuxtLink class="text-gray-900 dark:text-primary font-medium hover:underline hover:text-primary" :to="{ name: 'admin-projects-id', params: { id: row.id } }">{{ row.name }}</NuxtLink>
+          <NuxtLink class="text-gray-900 dark:text-primary font-bold dark:font-medium hover:underline hover:text-primary" :to="{ name: 'admin-projects-id', params: { id: row.id } }">{{ row.name }}</NuxtLink>
         </template>
         <template #commissionRate-data="{ row }">
-          <span v-if="row.commission_rate_min != null || row.commission_rate_max != null" class="text-sm">
+          <span v-if="row.commission_rate_min != null || row.commission_rate_max != null" class="text-sm text-gray-900 dark:text-white">
             {{ row.commission_rate_min != null ? `${row.commission_rate_min}%` : '' }}
             <span v-if="row.commission_rate_min != null && row.commission_rate_max != null"> - </span>
             {{ row.commission_rate_max != null ? `${row.commission_rate_max}%` : '' }}
           </span>
-          <span v-else class="text-gray-400 text-sm">—</span>
+          <span v-else class="text-gray-400 dark:text-gray-500 text-sm">—</span>
+        </template>
+        <template #usersCount-data="{ row }">
+          <span class="text-gray-900 dark:text-white">{{ row.usersCount }}</span>
+        </template>
+        <template #adminsCount-data="{ row }">
+          <span class="text-gray-900 dark:text-white">{{ row.adminsCount }}</span>
         </template>
         <template #actions-data="{ row }">
           <div class="flex gap-2">
@@ -557,11 +563,11 @@ watch(filteredProjects, () => {
         ]"
       >
         <template #date-data="{ row }">
-          <span>{{ formatDate(row.date) }}</span>
+          <span class="text-gray-900 dark:text-white">{{ formatDate(row.date) }}</span>
         </template>
         <template #user_id-data="{ row }">
           <NuxtLink 
-            class="text-gray-900 dark:text-primary font-medium hover:underline hover:text-primary" 
+            class="text-gray-900 dark:text-primary font-bold dark:font-medium hover:underline hover:text-primary" 
             :to="`/admin/users/${row.user_id}`"
           >
             {{ getUserName(row.user_id) }}
@@ -569,26 +575,26 @@ watch(filteredProjects, () => {
         </template>
         <template #project_id-data="{ row }">
           <NuxtLink 
-            class="text-gray-900 dark:text-primary font-medium hover:underline hover:text-primary" 
+            class="text-gray-900 dark:text-primary font-bold dark:font-medium hover:underline hover:text-primary" 
             :to="`/admin/projects/${row.project_id}`"
           >
             {{ getProjectName(row.project_id) }}
           </NuxtLink>
         </template>
         <template #client_name-data="{ row }">
-          <span>{{ row.client_name || '—' }}</span>
+          <span class="text-gray-900 dark:text-white">{{ row.client_name || '—' }}</span>
         </template>
         <template #description-data="{ row }">
-          <span class="max-w-xs truncate block" :title="row.description">{{ row.description || '—' }}</span>
+          <span class="max-w-xs truncate block text-gray-900 dark:text-white" :title="row.description">{{ row.description || '—' }}</span>
         </template>
         <template #contract_amount-data="{ row }">
-          <span>{{ formatValue(row.contract_amount != null ? row.contract_amount : row.original_value, row.currency) }}</span>
+          <span class="text-gray-900 dark:text-white">{{ formatValue(row.contract_amount != null ? row.contract_amount : row.original_value, row.currency) }}</span>
         </template>
         <template #commission_rate-data="{ row }">
-          <span>{{ row.commission_rate != null ? `${row.commission_rate}%` : '—' }}</span>
+          <span class="text-gray-900 dark:text-white">{{ row.commission_rate != null ? `${row.commission_rate}%` : '—' }}</span>
         </template>
         <template #value-data="{ row }">
-          <span>{{ formatValue(row.value, row.currency) }}</span>
+          <span class="text-gray-900 dark:text-white">{{ formatValue(row.value, row.currency) }}</span>
         </template>
         <template #status-data="{ row }">
           <UBadge 

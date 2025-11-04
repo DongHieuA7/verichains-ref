@@ -915,7 +915,7 @@ const saveCommission = async () => {
               { key: 'actions', label: $t('common.actions') },
             ]">
               <template #name-data="{ row }">
-                <span>{{ adminLabel(row.uid) }}</span>
+                <span class="text-gray-900 dark:text-white">{{ adminLabel(row.uid) }}</span>
               </template>
               <template #role-data="{ row }">
                 <UBadge 
@@ -934,13 +934,13 @@ const saveCommission = async () => {
                 >
                   {{ $t('admin.projectOwner') }}
                 </UBadge>
-                <span v-else class="text-gray-400 text-sm">—</span>
+                <span v-else class="text-gray-400 dark:text-gray-500 text-sm">—</span>
               </template>
               <template #email-data="{ row }">
-                <span>{{ allAdmins.find(a => a.id === row.uid)?.email || '-' }}</span>
+                <span class="text-gray-900 dark:text-white">{{ allAdmins.find(a => a.id === row.uid)?.email || '-' }}</span>
               </template>
               <template #joined-data="{ row }">
-                <span>{{ formatDate(allAdmins.find(a => a.id === row.uid)?.created_at || '') }}</span>
+                <span class="text-gray-900 dark:text-white">{{ formatDate(allAdmins.find(a => a.id === row.uid)?.created_at || '') }}</span>
               </template>
               <template #actions-data="{ row }">
                 <UButton 
@@ -1012,14 +1012,14 @@ const saveCommission = async () => {
                       </td>
                       <td class="py-2 font-medium">
                         <NuxtLink 
-                          class="text-primary hover:underline" 
+                          class="text-gray-900 dark:text-primary hover:underline font-bold dark:font-medium" 
                           :to="`/admin/users/${row.user_id}`"
                         >
                           {{ userLabel(row.user_id) }}
                         </NuxtLink>
                       </td>
                       <td class="py-2">
-                        <span>{{ allUsers.find(u => u.id === row.user_id)?.email || '-' }}</span>
+                        <span class="text-gray-900 dark:text-white">{{ allUsers.find(u => u.id === row.user_id)?.email || '-' }}</span>
                       </td>
                       <td class="py-2">
                         <UBadge 
@@ -1028,9 +1028,11 @@ const saveCommission = async () => {
                           variant="soft" 
                         />
                       </td>
-                      <td class="py-2">{{ formatDate(row.status === 'joined' ? (row.joined_at || '') : (row.requested_at || '')) }}</td>
                       <td class="py-2">
-                        <span v-if="project?.commission_rate_min != null || project?.commission_rate_max != null">
+                        <span class="text-gray-900 dark:text-white">{{ formatDate(row.status === 'joined' ? (row.joined_at || '') : (row.requested_at || '')) }}</span>
+                      </td>
+                      <td class="py-2">
+                        <span v-if="project?.commission_rate_min != null || project?.commission_rate_max != null" class="text-gray-900 dark:text-white">
                           <template v-if="project?.commission_rate_min != null && project?.commission_rate_max != null">
                             {{ project?.commission_rate_min }}% - {{ project?.commission_rate_max }}%
                           </template>
@@ -1038,13 +1040,13 @@ const saveCommission = async () => {
                             {{ (project?.commission_rate_min ?? project?.commission_rate_max) }}%
                           </template>
                         </span>
-                        <span v-else class="text-gray-400">—</span>
+                        <span v-else class="text-gray-400 dark:text-gray-500">—</span>
                       </td>
                       <td class="py-2">
-                        <span v-if="row.status === 'joined' && totalCommissionByUser[row.user_id] && totalCommissionByUser[row.user_id].amount > 0">
+                        <span v-if="row.status === 'joined' && totalCommissionByUser[row.user_id] && totalCommissionByUser[row.user_id].amount > 0" class="text-gray-900 dark:text-white">
                           {{ formatValue(totalCommissionByUser[row.user_id].amount, 'VND') }}
                         </span>
-                        <span v-else class="text-gray-400">—</span>
+                        <span v-else class="text-gray-400 dark:text-gray-500">—</span>
                       </td>
                       <td class="py-2 flex items-center gap-2">
                         <template v-if="row.status === 'joined'">
@@ -1119,22 +1121,22 @@ const saveCommission = async () => {
                           ]"
                         >
                           <template #date-data="{ row: c }">
-                            <span>{{ formatDate(c.date) }}</span>
+                            <span class="text-gray-900 dark:text-white">{{ formatDate(c.date) }}</span>
                           </template>
                           <template #client_name-data="{ row: c }">
-                            <span>{{ c.client_name || '—' }}</span>
+                            <span class="text-gray-900 dark:text-white">{{ c.client_name || '—' }}</span>
                           </template>
                           <template #description-data="{ row: c }">
-                            <span>{{ c.description || '—' }}</span>
+                            <span class="text-gray-900 dark:text-white">{{ c.description || '—' }}</span>
                           </template>
                           <template #value-data="{ row: c }">
-                            <span>{{ formatValue(c.contract_amount != null ? c.contract_amount : (c.original_value != null ? c.original_value : c.value), c.currency || 'VND') }}</span>
+                            <span class="text-gray-900 dark:text-white">{{ formatValue(c.contract_amount != null ? c.contract_amount : (c.original_value != null ? c.original_value : c.value), c.currency || 'VND') }}</span>
                           </template>
                           <template #commission_rate-data="{ row: c }">
-                            <span>{{ c.commission_rate != null ? `${c.commission_rate}%` : '—' }}</span>
+                            <span class="text-gray-900 dark:text-white">{{ c.commission_rate != null ? `${c.commission_rate}%` : '—' }}</span>
                           </template>
                           <template #commission_received-data="{ row: c }">
-                            <span>
+                            <span class="text-gray-900 dark:text-white">
                               {{ formatValue((() => {
                                 if (c.status === 'confirmed' || c.status === 'paid') return c.value
                                 if (c.contract_amount != null && c.commission_rate != null) {

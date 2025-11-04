@@ -418,7 +418,7 @@ const saveEdit = async () => {
         :columns="tableColumns"
       >
         <template #date-data="{ row }">
-          <span>{{ formatDate(row.date) }}</span>
+          <span class="text-gray-900 dark:text-white">{{ formatDate(row.date) }}</span>
         </template>
         
         <template #project_id-data="{ row }">
@@ -426,23 +426,23 @@ const saveEdit = async () => {
         </template>
         
         <template #client_name-data="{ row }">
-          <span>{{ row.client_name || '—' }}</span>
+          <span class="text-gray-900 dark:text-white">{{ row.client_name || '—' }}</span>
         </template>
         
         <template #description-data="{ row }">
-          <span>{{ row.description || '—' }}</span>
+          <span class="text-gray-900 dark:text-white">{{ row.description || '—' }}</span>
         </template>
         
         <template #value-data="{ row }">
-          <span>{{ formatValue(getOriginalValueDisplay(row), row.currency || 'VND') }}</span>
+          <span class="text-gray-900 dark:text-white">{{ formatValue(getOriginalValueDisplay(row), row.currency || 'VND') }}</span>
         </template>
         
         <template #commission_rate-data="{ row }">
-          <span>{{ row.commission_rate != null ? `${row.commission_rate}%` : '—' }}</span>
+          <span class="text-gray-900 dark:text-white">{{ row.commission_rate != null ? `${row.commission_rate}%` : '—' }}</span>
         </template>
         
         <template #commission_received-data="{ row }">
-          <span>{{ formatValue(getCommissionReceivedDisplay(row), row.currency || 'VND') }}</span>
+          <span class="text-gray-900 dark:text-white">{{ formatValue(getCommissionReceivedDisplay(row), row.currency || 'VND') }}</span>
         </template>
         
         <template #status-data="{ row }">
@@ -465,7 +465,7 @@ const saveEdit = async () => {
             >
               {{ $t('common.edit') }}
             </UButton>
-            <span v-else class="text-xs text-gray-400">—</span>
+            <span v-else class="text-xs text-gray-400 dark:text-gray-500">—</span>
           </div>
         </template>
         
