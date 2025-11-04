@@ -123,18 +123,8 @@ const signOut = async () => {
           <UCard>
             <template #header>
               <div class="flex items-center gap-2">
-                <img
-                  v-if="colorMode.value === 'dark'"
-                  src="/white-logo.png"
-                  alt="Logo"
-                  class="w-8 h-8"
-                />
-                <img
-                  v-else
-                  src="/favicon.png"
-                  alt="Logo"
-                  class="w-8 h-8"
-                />
+                <img src="/favicon.png" class="w-8 h-8 block dark:hidden" alt="Logo" />
+                <img src="/white-logo.png" class="w-8 h-8 hidden dark:block" alt="Logo" />
                 <h3 class="font-semibold">Verichains Referral</h3>
               </div>
             </template>

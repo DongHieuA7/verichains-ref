@@ -48,18 +48,8 @@
     <div class="text-center space-y-6 mb-6">
       <div>
         <div class="flex items-center justify-center gap-3 mb-4">
-          <img
-            v-if="colorMode.value === 'dark'"
-            src="/white-logo.png"
-            alt="Logo"
-            class="w-12 h-12"
-          />
-          <img
-            v-else
-            src="/favicon.png"
-            alt="Logo"
-            class="w-12 h-12"
-          />
+          <img src="/favicon.png" class="w-12 h-12 block dark:hidden" alt="Logo" />
+          <img src="/white-logo.png" class="w-12 h-12 hidden dark:block" alt="Logo" />
           <h1 class="text-3xl font-bold">{{ $t('home.title') }}</h1>
         </div>
         <p class="text-gray-600 dark:text-white">{{ $t('home.subtitle') }}</p>
