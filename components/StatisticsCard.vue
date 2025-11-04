@@ -63,18 +63,18 @@ const iconTextColorClass = computed(() => {
           <div :class="['w-10 h-10 rounded-full flex items-center justify-center', iconBgColorClass]">
             <UIcon :name="icon" :class="['w-5 h-5', iconTextColorClass]" />
           </div>
-          <span class="text-sm font-medium text-gray-600">{{ title }}</span>
+          <span class="text-sm font-medium text-gray-600 dark:text-white">{{ title }}</span>
         </div>
         <template v-if="displayValue !== null && displayValue !== undefined">
-          <div v-if="value !== null && value !== undefined" class="text-3xl font-bold text-gray-900">
+          <div v-if="value !== null && value !== undefined" class="text-3xl font-bold text-gray-900 dark:text-white">
             {{ displayValue }}
           </div>
-          <div v-else-if="typeof displayValue === 'number'" class="text-3xl font-bold text-gray-900">
+          <div v-else-if="typeof displayValue === 'number'" class="text-3xl font-bold text-gray-900 dark:text-white">
             {{ formatValue(displayValue, 'VND') }}
           </div>
-          <div v-else class="text-3xl font-bold text-gray-400">—</div>
+          <div v-else class="text-3xl font-bold text-gray-400 dark:text-gray-500">—</div>
         </template>
-        <div v-else class="text-3xl font-bold text-gray-400">—</div>
+        <div v-else class="text-3xl font-bold text-gray-400 dark:text-gray-500">—</div>
       </div>
     </div>
   </UCard>

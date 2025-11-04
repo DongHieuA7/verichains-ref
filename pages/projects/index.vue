@@ -184,6 +184,7 @@ onMounted(async () => {
                 color="gray" 
                 variant="soft" 
                 size="xs"
+                class="text-gray-900 dark:text-white"
                 @click="openPolicyModal(project)"
               >
                 {{ $t('projects.viewPolicy') }}
@@ -216,20 +217,17 @@ onMounted(async () => {
               <UInput 
                 :value="projects.find(p => p.id === selectedProject)?.name || ''" 
                 disabled 
-                class="bg-gray-50"
+                class="bg-gray-50 dark:bg-gray-800 dark:border-gray-700"
               />
             </UFormGroup>
             
             <!-- Show Commission Rate Range (read-only) -->
             <UFormGroup v-if="selectedProjectData && (selectedProjectData.commission_rate_min != null || selectedProjectData.commission_rate_max != null)" :label="$t('projects.commissionRateRange')">
-              <div class="flex items-center gap-2">
-                <UInput 
-                  :value="`${selectedProjectData.commission_rate_min != null ? selectedProjectData.commission_rate_min : ''}${selectedProjectData.commission_rate_min != null && selectedProjectData.commission_rate_max != null ? ' - ' : ''}${selectedProjectData.commission_rate_max != null ? selectedProjectData.commission_rate_max : ''}%`"
-                  disabled
-                  class="bg-gray-50 flex-1"
-                />
-                <span class="text-xs text-gray-500 dark:text-gray-400">({{ $t('common.readOnly') || 'Read-only' }})</span>
-              </div>
+              <UInput 
+                :value="`${selectedProjectData.commission_rate_min != null ? selectedProjectData.commission_rate_min : ''}${selectedProjectData.commission_rate_min != null && selectedProjectData.commission_rate_max != null ? ' - ' : ''}${selectedProjectData.commission_rate_max != null ? selectedProjectData.commission_rate_max : ''}%`"
+                disabled
+                class="bg-gray-50 dark:bg-gray-800 dark:border-gray-700 flex-1"
+              />
             </UFormGroup>
             
             <!-- Show Policy link if exists -->
@@ -239,7 +237,7 @@ onMounted(async () => {
                 variant="soft" 
                 size="xs"
                 @click="() => { isRequestOpen = false; openPolicyModal(selectedProjectData); }"
-                class="w-full"
+                class="w-full text-gray-900 dark:text-white"
               >
                 {{ $t('projects.viewPolicy') }}
               </UButton>
@@ -256,7 +254,7 @@ onMounted(async () => {
           </div>
         <template #footer>
           <div class="flex justify-end gap-2">
-            <UButton color="gray" variant="soft" @click="isRequestOpen = false" :disabled="isLoading">
+            <UButton color="gray" variant="outline" class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700" @click="isRequestOpen = false" :disabled="isLoading">
               {{ $t('common.cancel') }}
             </UButton>
             <UButton 
@@ -285,7 +283,7 @@ onMounted(async () => {
         </div>
         <template #footer>
           <div class="flex justify-end gap-2">
-            <UButton color="gray" variant="soft" @click="isPolicyOpen = false">
+            <UButton color="gray" variant="outline" class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700" @click="isPolicyOpen = false">
               {{ $t('common.cancel') }}
             </UButton>
           </div>

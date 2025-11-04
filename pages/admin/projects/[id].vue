@@ -977,7 +977,7 @@ const saveCommission = async () => {
             <div class="overflow-x-auto">
               <table class="min-w-full text-sm">
                 <thead>
-                  <tr class="text-left text-gray-500">
+                  <tr class="text-left text-gray-500 dark:text-white">
                     <th class="w-10"></th>
                     <th class="py-2">{{ $t('common.name') }}</th>
                     <th class="py-2">{{ $t('common.email') }}</th>
@@ -991,7 +991,7 @@ const saveCommission = async () => {
                 <tbody>
                   <template v-if="usersTableData.length === 0">
                     <tr>
-                      <td colspan="8" class="py-8 text-center text-gray-500">
+                      <td colspan="8" class="py-8 text-center text-gray-500 dark:text-white">
                         {{ $t('projects.noUsersOrPending') }}
                       </td>
                     </tr>
