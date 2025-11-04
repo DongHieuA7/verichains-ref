@@ -15,49 +15,6 @@
   const colorMode = useColorMode()
   
   const isLoading = ref(false)
-  
-  const logoPath = ref('/favicon.png')
-
-  // Function to update logo based on current theme
-  const updateLogo = () => {
-    if (process.client) {
-      // Check DOM directly - most reliable
-      const isDark = document.documentElement.classList.contains('dark')
-      logoPath.value = isDark ? '/white-logo.png' : '/favicon.png'
-    } else {
-      // SSR fallback
-      logoPath.value = '/favicon.png'
-    }
-  }
-
-  // Watch colorMode changes
-  watch(() => colorMode.value, () => {
-    updateLogo()
-  }, { immediate: true })
-
-  watch(() => colorMode.preference, () => {
-    updateLogo()
-  }, { immediate: true })
-
-  onMounted(() => {
-    // Ensure logo is correct after hydration
-    updateLogo()
-    
-    // Watch for class changes on documentElement (for theme changes)
-    const observer = new MutationObserver(() => {
-      updateLogo()
-    })
-    
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['class']
-    })
-    
-    // Cleanup on unmount
-    onUnmounted(() => {
-      observer.disconnect()
-    })
-  })
 
   const signInWithGoogle = async () =>  {
     try {
@@ -91,7 +48,18 @@
     <div class="text-center space-y-6 mb-6">
       <div>
         <div class="flex items-center justify-center gap-3 mb-4">
-          <img :src="logoPath" alt="Logo" class="w-12 h-12" />
+          <img
+            v-if="colorMode.value === 'dark'"
+            src="/white-logo.png"
+            alt="Logo"
+            class="w-12 h-12"
+          />
+          <img
+            v-else
+            src="/favicon.png"
+            alt="Logo"
+            class="w-12 h-12"
+          />
           <h1 class="text-3xl font-bold">{{ $t('home.title') }}</h1>
         </div>
         <p class="text-gray-600 dark:text-white">{{ $t('home.subtitle') }}</p>

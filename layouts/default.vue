@@ -5,49 +5,6 @@ const colorMode = useColorMode()
 
 const { t } = useI18n()
 
-const logoPath = ref('/favicon.png')
-
-// Function to update logo based on current theme
-const updateLogo = () => {
-  if (process.client) {
-    // Check DOM directly - most reliable
-    const isDark = document.documentElement.classList.contains('dark')
-    logoPath.value = isDark ? '/white-logo.png' : '/favicon.png'
-  } else {
-    // SSR fallback
-    logoPath.value = '/favicon.png'
-  }
-}
-
-// Watch colorMode changes
-watch(() => colorMode.value, () => {
-  updateLogo()
-}, { immediate: true })
-
-watch(() => colorMode.preference, () => {
-  updateLogo()
-}, { immediate: true })
-
-onMounted(() => {
-  // Ensure logo is correct after hydration
-  updateLogo()
-  
-  // Watch for class changes on documentElement (for theme changes)
-  const observer = new MutationObserver(() => {
-    updateLogo()
-  })
-  
-  observer.observe(document.documentElement, {
-    attributes: true,
-    attributeFilter: ['class']
-  })
-  
-  // Cleanup on unmount
-  onUnmounted(() => {
-    observer.disconnect()
-  })
-})
-
 // User navigation items
 const userNavItems = computed(() => [
   { label: t('nav.myProfile'), icon: 'i-lucide-user', to: '/profile' },
@@ -166,7 +123,18 @@ const signOut = async () => {
           <UCard>
             <template #header>
               <div class="flex items-center gap-2">
-                <img :src="logoPath" alt="Logo" class="w-8 h-8" />
+                <img
+                  v-if="colorMode.value === 'dark'"
+                  src="/white-logo.png"
+                  alt="Logo"
+                  class="w-8 h-8"
+                />
+                <img
+                  v-else
+                  src="/favicon.png"
+                  alt="Logo"
+                  class="w-8 h-8"
+                />
                 <h3 class="font-semibold">Verichains Referral</h3>
               </div>
             </template>
