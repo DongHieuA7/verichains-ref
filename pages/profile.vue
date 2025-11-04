@@ -96,7 +96,10 @@ const saveProfile = async () => {
           <div class="flex items-center justify-between">
             <h3 class="font-semibold">{{ $t('profile.referral') }}</h3>
             <div class="flex gap-2">
-              <UButton color="gray" variant="soft" @click="copyRef">{{ $t('profile.copyLink') }}</UButton>
+              <UButton color="gray"
+                       variant="outline"
+                       class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700"
+                       @click="copyRef">{{ $t('profile.copyLink') }}</UButton>
               <UButton color="primary" @click="shareRef">{{ $t('profile.share') }}</UButton>
             </div>
           </div>

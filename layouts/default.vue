@@ -6,7 +6,10 @@ const colorMode = useColorMode()
 const { t } = useI18n()
 
 const logoPath = computed(() => {
-  return colorMode.value === 'dark' ? '/white-logo.png' : '/favicon.png'
+  // Use preference if available, otherwise fallback to value
+  const mode = colorMode.preference || colorMode.value || 'light'
+  const currentMode = mode === 'system' ? colorMode.value : mode
+  return currentMode === 'dark' ? '/white-logo.png' : '/favicon.png'
 })
 
 // User navigation items
@@ -127,7 +130,7 @@ const signOut = async () => {
           <UCard>
             <template #header>
               <div class="flex items-center gap-2">
-                <img :src="logoPath" alt="Logo" class="w-8 h-8" />
+                <img :key="colorMode.value" :src="logoPath" alt="Logo" class="w-8 h-8" />
                 <h3 class="font-semibold">Verichains Referral</h3>
               </div>
             </template>

@@ -17,7 +17,10 @@
   const isLoading = ref(false)
   
   const logoPath = computed(() => {
-    return colorMode.value === 'dark' ? '/white-logo.png' : '/favicon.png'
+    // Use preference if available, otherwise fallback to value
+    const mode = colorMode.preference || colorMode.value || 'light'
+    const currentMode = mode === 'system' ? colorMode.value : mode
+    return currentMode === 'dark' ? '/white-logo.png' : '/favicon.png'
   })
 
   const signInWithGoogle = async () =>  {
@@ -52,7 +55,7 @@
     <div class="text-center space-y-6 mb-6">
       <div>
         <div class="flex items-center justify-center gap-3 mb-4">
-          <img :src="logoPath" alt="Logo" class="w-12 h-12" />
+          <img :key="colorMode.value" :src="logoPath" alt="Logo" class="w-12 h-12" />
           <h1 class="text-3xl font-bold">{{ $t('home.title') }}</h1>
         </div>
         <p class="text-gray-600 dark:text-white">{{ $t('home.subtitle') }}</p>

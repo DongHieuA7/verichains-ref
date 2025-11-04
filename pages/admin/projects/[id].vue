@@ -849,15 +849,16 @@ const saveCommission = async () => {
                 <UButton 
                   v-if="isProjectAdmin"
                   size="xs" 
-                  color="gray" 
-                  variant="soft"
+                  color="gray"
+                  variant="outline"
+                  class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700"
                   @click="openEditPolicy"
                 >
                   {{ $t('common.edit') }}
                 </UButton>
               </div>
             </template>
-            <div class="whitespace-pre-wrap text-sm text-gray-700">
+            <div class="whitespace-pre-wrap text-sm text-gray-700 dark:text-white">
               {{ project?.policy || $t('common.noData') }}
             </div>
           </UCard>
@@ -871,16 +872,17 @@ const saveCommission = async () => {
                 <h3 class="font-medium">{{ $t('projects.commissionRateRange') }}</h3>
                 <UButton 
                   v-if="isProjectAdmin"
-                  size="xs" 
-                  color="gray" 
-                  variant="soft"
+                  size="xs"
+                  color="gray"
+                  variant="outline"
+                  class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700"
                   @click="openEditCommissionRateRange"
                 >
                   {{ $t('common.edit') }}
                 </UButton>
               </div>
             </template>
-            <div class="text-sm text-gray-700">
+            <div class="text-sm text-gray-700 dark:text-white">
               <div v-if="project?.commission_rate_min != null || project?.commission_rate_max != null">
                 <span v-if="project?.commission_rate_min != null">{{ project.commission_rate_min }}%</span>
                 <span v-if="project?.commission_rate_min != null && project?.commission_rate_max != null"> - </span>
