@@ -126,14 +126,14 @@ export default defineEventHandler(async (event) => {
         .eq('id', userId)
         .maybeSingle()
       
-      // Role: preserve existing role if admin already exists, otherwise global_admin for all new admins
-      let adminRole = 'global_admin'
+      // Role: preserve existing role if admin already exists, otherwise project_owner for all new admins
+      let adminRole = 'project_owner'
       if (existingAdminWithRole?.role) {
         // Preserve existing role
         adminRole = existingAdminWithRole.role
       } else {
-        // All new admins (both invited and added) get global_admin role
-        adminRole = 'global_admin'
+        // All new admins (both invited and added) get project_owner role
+        adminRole = 'project_owner'
       }
       
       const { error: adminErr } = await adminClient
