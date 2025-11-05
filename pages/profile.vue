@@ -34,14 +34,9 @@ const fetchProfile = async () => {
       .from('user_profiles')
       .select('id, email, name, company, descript, ref_code')
       .eq('id', user.value.id)
-      .single()
+      .maybeSingle()
     
     if (error) {
-      // If profile doesn't exist, create one
-      if (error.code === 'PGRST116') {
-        await createProfile()
-        return
-      }
       toast.add({ color: 'red', title: $t('common.error') || 'Error', description: error.message, icon: 'i-lucide-x-circle' })
       return
     }
@@ -53,6 +48,9 @@ const fetchProfile = async () => {
       profile.company = data.company || ''
       profile.descript = data.descript || ''
       profile.ref_code = data.ref_code || ''
+    } else {
+      // Profile doesn't exist, create one
+      await createProfile()
     }
   } catch (error: any) {
     toast.add({ color: 'red', title: $t('common.error') || 'Error', description: error.message, icon: 'i-lucide-x-circle' })
@@ -74,9 +72,27 @@ const createProfile = async () => {
         name: user.value.user_metadata?.name || user.value.email?.split('@')[0] || '',
       })
       .select()
-      .single()
+      .maybeSingle()
     
     if (error) {
+      // If profile already exists (race condition), fetch it
+      if (error.code === '23505') {
+        const { data: existingData } = await supabase
+          .from('user_profiles')
+          .select('id, email, name, company, descript, ref_code')
+          .eq('id', user.value.id)
+          .maybeSingle()
+        
+        if (existingData) {
+          profile.id = existingData.id || ''
+          profile.email = existingData.email || ''
+          profile.name = existingData.name || ''
+          profile.company = existingData.company || ''
+          profile.descript = existingData.descript || ''
+          profile.ref_code = existingData.ref_code || ''
+        }
+        return
+      }
       toast.add({ color: 'red', title: $t('common.error') || 'Error', description: error.message, icon: 'i-lucide-x-circle' })
       return
     }
