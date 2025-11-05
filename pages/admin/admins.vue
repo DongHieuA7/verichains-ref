@@ -195,17 +195,10 @@ const removeProjectOwner = async (adminId: string) => {
       p.admins && Array.isArray(p.admins) && p.admins.includes(adminId)
     )
 
-    if (!projects || projects.length === 0) {
-      const toast = useToast()
-      toast.add({
-        color: 'yellow',
-        title: t('admin.noProjectsFound'),
-        description: t('admin.adminNotInAnyProject'),
-      })
-      return
-    }
+    // If admin is not owner of any project, we still proceed to remove admin role
+    // Otherwise, first remove them from all projects below, then delete admin role
 
-    // Remove admin from all projects
+    // Remove admin from all projects (if any)
     for (const project of projects) {
       const nextAdmins = (project.admins || []).filter((id: string) => id !== adminId)
       const { error: updateError } = await supabase
@@ -218,14 +211,26 @@ const removeProjectOwner = async (adminId: string) => {
       }
     }
 
+    // Finally, remove admin role (delete from admins table)
+    const { error: deleteAdminErr } = await supabase
+      .from('admins')
+      .delete()
+      .eq('id', adminId)
+
+    if (deleteAdminErr) {
+      throw deleteAdminErr
+    }
+
     // Refresh admins list after removal
     await fetchAdmins()
     
     const toast = useToast()
     toast.add({
       color: 'green',
-      title: t('admin.projectOwnerRemoved'),
-      description: t('admin.projectOwnerRemovedFromProjects', { count: projects.length }),
+      title: t('admin.adminRemoved') || 'Admin removed',
+      description: projects.length > 0
+        ? (t('admin.projectOwnerRemovedFromProjects', { count: projects.length }) as string)
+        : (t('admin.adminNotInAnyProject') as string),
     })
   } catch (error: any) {
     const toast = useToast()

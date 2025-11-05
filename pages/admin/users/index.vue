@@ -216,16 +216,16 @@ const invite = async () => {
           <h3 class="font-semibold">{{ $t('users.deleteUser') }}</h3>
         </template>
         <div class="space-y-4">
-          <p class="text-gray-600">{{ $t('users.deleteUserConfirm') }}</p>
+          <p class="text-gray-600 dark:text-white">{{ $t('users.deleteUserConfirm') }}</p>
           <p v-if="userToDelete" class="font-medium">
             {{ users.find(u => u.id === userToDelete)?.email || userToDelete }}
           </p>
-          <p class="text-sm text-red-600">{{ $t('users.deleteUserWarning') }}</p>
+          <p class="text-sm text-red-600 dark:text-red-400">{{ $t('users.deleteUserWarning') }}</p>
         </div>
         <template #footer>
           <div class="flex justify-end gap-2">
             <UButton color="gray" variant="outline" class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700" @click="isDeleteConfirmOpen = false">{{ $t('common.cancel') }}</UButton>
-            <UButton color="red" @click="deleteUser" :loading="isLoading" :disabled="isLoading">{{ $t('common.delete') }}</UButton>
+            <UButton color="red" @click="deleteUser" :loading="isLoading" class="dark:text-white" :disabled="isLoading">{{ $t('common.delete') }}</UButton>
           </div>
         </template>
       </UCard>
