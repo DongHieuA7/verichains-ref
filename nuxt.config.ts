@@ -24,11 +24,11 @@ export default defineNuxtConfig({
 		icons: ['lucide'],
 	},
 	supabase: {
-		redirect: true,
-        redirectOptions: {
-          login: '/sign-in',
-          callback: 'https://verichains-ref.vercel.app/auth/callback'
-        }
+		redirect: false,
+        // redirectOptions: {
+        //   login: '/sign-in',
+        //   callback: 'https://verichains-ref.vercel.app/auth/callback'
+        // }
 	},
 	runtimeConfig: {
 		public: {

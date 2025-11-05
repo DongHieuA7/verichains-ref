@@ -20,6 +20,14 @@ const selectedProjectData = ref<any>(null)
 const requestForm = reactive({
   message: '',
 })
+// Track if policy modal was opened from request form
+const isPolicyOpenedFromRequest = ref(false)
+// Store request form data when opening policy modal
+const savedRequestFormData = reactive({
+  message: '',
+  selectedProject: '',
+  selectedProjectData: null as any,
+})
 
 // Fetch all projects
 const fetchProjects = async () => {
@@ -91,10 +99,37 @@ const openRequestModal = (projectId: string) => {
 }
 
 // Open policy modal
-const openPolicyModal = (project: any) => {
+const openPolicyModal = (project: any, fromRequestForm = false) => {
   selectedProjectData.value = project
+  isPolicyOpenedFromRequest.value = fromRequestForm
+  if (fromRequestForm) {
+    // Save current request form data
+    savedRequestFormData.message = requestForm.message
+    savedRequestFormData.selectedProject = selectedProject.value
+    savedRequestFormData.selectedProjectData = selectedProjectData.value
+    // Close request form temporarily
+    isRequestOpen.value = false
+  }
   isPolicyOpen.value = true
 }
+
+// Close policy modal and restore request form if needed
+const closePolicyModal = () => {
+  isPolicyOpen.value = false
+  // The watcher will handle restoring the request form if needed
+}
+
+// Watch for policy modal closing (handles ESC key, clicking outside, etc.)
+watch(isPolicyOpen, (newValue) => {
+  if (!newValue && isPolicyOpenedFromRequest.value) {
+    // Policy modal was closed, restore request form
+    requestForm.message = savedRequestFormData.message
+    selectedProject.value = savedRequestFormData.selectedProject
+    selectedProjectData.value = savedRequestFormData.selectedProjectData
+    isRequestOpen.value = true
+    isPolicyOpenedFromRequest.value = false
+  }
+})
 
 // Submit join request
 const submitJoinRequest = async () => {
@@ -236,7 +271,7 @@ onMounted(async () => {
                 color="gray" 
                 variant="outline" 
                 size="xs"
-                @click="() => { isRequestOpen = false; openPolicyModal(selectedProjectData); }"
+                @click="openPolicyModal(selectedProjectData, true)"
                 class="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-gray-200 dark:border-gray-700"
               >
                 {{ $t('projects.viewPolicy') }}
@@ -283,7 +318,7 @@ onMounted(async () => {
         </div>
         <template #footer>
           <div class="flex justify-end gap-2">
-            <UButton color="gray" variant="outline" class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700" @click="isPolicyOpen = false">
+            <UButton color="gray" variant="outline" class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700" @click="closePolicyModal">
               {{ $t('common.cancel') }}
             </UButton>
           </div>
