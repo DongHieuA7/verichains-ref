@@ -64,49 +64,31 @@ const createProfile = async () => {
   if (!user.value) return
   
   try {
-    const { data, error } = await supabase
-      .from('user_profiles')
-      .insert({
-        id: user.value.id,
-        email: user.value.email || '',
-        name: user.value.user_metadata?.name || user.value.email?.split('@')[0] || '',
-      })
-      .select()
-      .maybeSingle()
-    
-    if (error) {
-      // If profile already exists (race condition), fetch it
-      if (error.code === '23505') {
-        const { data: existingData } = await supabase
-          .from('user_profiles')
-          .select('id, email, name, company, descript, ref_code')
-          .eq('id', user.value.id)
-          .maybeSingle()
-        
-        if (existingData) {
-          profile.id = existingData.id || ''
-          profile.email = existingData.email || ''
-          profile.name = existingData.name || ''
-          profile.company = existingData.company || ''
-          profile.descript = existingData.descript || ''
-          profile.ref_code = existingData.ref_code || ''
-        }
-        return
-      }
-      toast.add({ color: 'red', title: $t('common.error') || 'Error', description: error.message, icon: 'i-lucide-x-circle' })
+    // Use server API endpoint to create profile (bypasses RLS)
+    const { data: session } = await supabase.auth.getSession()
+    if (!session?.session?.access_token) {
+      toast.add({ color: 'red', title: $t('common.error') || 'Error', description: 'No session found', icon: 'i-lucide-x-circle' })
       return
     }
-    
-    if (data) {
-      profile.id = data.id || ''
-      profile.email = data.email || ''
-      profile.name = data.name || ''
-      profile.company = data.company || ''
-      profile.descript = data.descript || ''
-      profile.ref_code = data.ref_code || ''
+
+    const response = await $fetch('/api/profile/create', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${session.session.access_token}`
+      }
+    })
+
+    if (response) {
+      profile.id = response.id || ''
+      profile.email = response.email || ''
+      profile.name = response.name || ''
+      profile.company = response.company || ''
+      profile.descript = response.descript || ''
+      profile.ref_code = response.ref_code || ''
     }
   } catch (error: any) {
-    toast.add({ color: 'red', title: $t('common.error') || 'Error', description: error.message, icon: 'i-lucide-x-circle' })
+    console.error('Error creating profile:', error)
+    toast.add({ color: 'red', title: $t('common.error') || 'Error', description: error.message || 'Failed to create profile', icon: 'i-lucide-x-circle' })
   }
 }
 
