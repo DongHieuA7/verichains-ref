@@ -786,28 +786,21 @@ const calculateCommissionAmount = () => {
   return 0
 }
 
-// Status options for edit commission modal
-// - When status is 'requested': show 'confirmed' and 'paid'
-// - When status is 'confirmed': show only 'paid'
-// - When status is 'paid': no edit allowed (handled by button visibility)
+// Status options for edit commission modal (hide 'requested' if current status is confirmed or paid)
 const commissionStatusOptions = computed(() => {
   const currentStatus = editCommissionDraft.status
+  const allOptions = [
+    { label: t('commissions.requested'), value: 'requested' },
+    { label: t('commissions.confirmed'), value: 'confirmed' },
+    { label: t('commissions.paid'), value: 'paid' },
+  ]
   
-  if (currentStatus === 'requested') {
-    return [
-      { label: t('commissions.confirmed'), value: 'confirmed' },
-      { label: t('commissions.paid'), value: 'paid' },
-    ]
+  // If current status is confirmed or paid, hide 'requested' option
+  if (currentStatus === 'confirmed' || currentStatus === 'paid') {
+    return allOptions.filter(opt => opt.value !== 'requested')
   }
   
-  if (currentStatus === 'confirmed') {
-    return [
-      { label: t('commissions.paid'), value: 'paid' },
-    ]
-  }
-  
-  // For 'paid' status, should not reach here (button is hidden)
-  return []
+  return allOptions
 })
 
 // Save commission

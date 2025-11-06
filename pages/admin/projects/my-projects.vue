@@ -274,28 +274,21 @@ const statusOptions = computed(() => [
   { label: capitalize(t('commissions.paid')), value: 'paid' },
 ])
 
-// Status options for edit commission modal
-// - When status is 'requested': show 'confirmed' and 'paid'
-// - When status is 'confirmed': show only 'paid'
-// - When status is 'paid': no edit allowed (handled by button visibility)
+// Status options for edit commission modal (hide 'requested' if current status is confirmed or paid)
 const commissionStatusOptions = computed(() => {
   const currentStatus = editCommissionDraft.status
+  const allOptions = [
+    { label: capitalize(t('commissions.requested')), value: 'requested' },
+    { label: capitalize(t('commissions.confirmed')), value: 'confirmed' },
+    { label: capitalize(t('commissions.paid')), value: 'paid' },
+  ]
   
-  if (currentStatus === 'requested') {
-    return [
-      { label: capitalize(t('commissions.confirmed')), value: 'confirmed' },
-      { label: capitalize(t('commissions.paid')), value: 'paid' },
-    ]
+  // If current status is confirmed or paid, hide 'requested' option
+  if (currentStatus === 'confirmed' || currentStatus === 'paid') {
+    return allOptions.filter(opt => opt.value !== 'requested')
   }
   
-  if (currentStatus === 'confirmed') {
-    return [
-      { label: capitalize(t('commissions.paid')), value: 'paid' },
-    ]
-  }
-  
-  // For 'paid' status, should not reach here (button is hidden)
-  return []
+  return allOptions
 })
 
 // Capitalize helper
