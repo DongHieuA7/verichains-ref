@@ -1,7 +1,7 @@
 <script setup lang="ts">
 const { t } = useI18n()
 
-definePageMeta({ middleware: ['auth','admin'] })
+definePageMeta({ middleware: ['auth','project-owner'] })
 useSeoMeta({ title: `Admin - ${t('admin.myProjects') || 'My Projects'}` })
 
 const supabase = useSupabaseClient()

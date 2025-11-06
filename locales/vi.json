@@ -80,7 +80,11 @@
     "approve": "Phê duyệt",
     "reject": "Từ chối",
     "requestSubmitted": "Đã gửi yêu cầu",
-    "requestSubmittedDescription": "Yêu cầu tham gia của bạn đã được gửi và đang chờ phê duyệt."
+    "requestSubmittedDescription": "Yêu cầu tham gia của bạn đã được gửi và đang chờ phê duyệt.",
+    "commissionRateRange": "Tỷ lệ hoa hồng",
+    "referralPercentageMustBeInRange": "Phần trăm giới thiệu phải nằm trong khoảng {min}% đến {max}%",
+    "viewPolicy": "Xem chính sách",
+    "editPolicy": "Sửa chính sách"
   },
   "commissions": {
     "myCommissionRequests": "Yêu cầu hoa hồng của tôi",

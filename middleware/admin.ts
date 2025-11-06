@@ -13,7 +13,8 @@ export default defineNuxtRouteMiddleware(async () => {
     .maybeSingle()
 
   if (error || !data) {
-    return navigateTo('/dashboard')
+    // User is not admin, redirect to projects page
+    return navigateTo('/admin/admins')
   }
 })
 

@@ -543,17 +543,47 @@ const saveEditRequest = async () => {
     return
   }
   
+  // Validate within project's commission rate range
+  if (editRequest.ref_percentage != null) {
+    const min = project.value?.commission_rate_min != null ? Number(project.value.commission_rate_min) : 0
+    const max = project.value?.commission_rate_max != null ? Number(project.value.commission_rate_max) : 100
+    const v = Number(editRequest.ref_percentage)
+    
+    if (v < min || v > max) {
+      const toast = useToast()
+      toast.add({
+        color: 'red',
+        title: t('messages.failedToUpdate'),
+        description: t('projects.referralPercentageMustBeInRange', { min, max }) || `Referral percentage must be between ${min}% and ${max}%`,
+      })
+      return
+    }
+  }
+  
   const { error } = await supabase
     .from('project_join_requests')
     .update({ ref_percentage: editRequest.ref_percentage })
     .eq('id', editRequest.id)
   
   if (error) {
+    const toast = useToast()
+    toast.add({
+      color: 'red',
+      title: t('messages.failedToUpdate'),
+      description: getErrorMessage(error),
+    })
     return
   }
   
   await fetchJoinRequests()
   isEditRequestOpen.value = false
+  
+  const toast = useToast()
+  toast.add({
+    color: 'green',
+    title: t('common.save'),
+    description: t('messages.success'),
+  })
 }
 const openEditRef = (uid: string) => {
   editRef.uid = uid
@@ -574,7 +604,20 @@ const saveEditRef = async () => {
     return
   }
   
-  const v = Math.max(0, Math.min(100, Number(editRef.value)))
+  // Validate within project's commission rate range
+  const min = project.value?.commission_rate_min != null ? Number(project.value.commission_rate_min) : 0
+  const max = project.value?.commission_rate_max != null ? Number(project.value.commission_rate_max) : 100
+  const v = Number(editRef.value)
+  
+  if (v < min || v > max) {
+    const toast = useToast()
+    toast.add({
+      color: 'red',
+      title: t('messages.failedToUpdate'),
+      description: t('projects.referralPercentageMustBeInRange', { min, max }) || `Referral percentage must be between ${min}% and ${max}%`,
+    })
+    return
+  }
   
   const { error } = await supabase
     .from('user_project_info')
@@ -585,6 +628,12 @@ const saveEditRef = async () => {
     }, { onConflict: 'project_id,user_id' })
   
   if (error) {
+    const toast = useToast()
+    toast.add({
+      color: 'red',
+      title: t('messages.failedToUpdate'),
+      description: getErrorMessage(error),
+    })
     return
   }
   
@@ -593,6 +642,13 @@ const saveEditRef = async () => {
   }
   userRefInfo.value[editRef.uid].ref_percentage = v
   isEditRefOpen.value = false
+  
+  const toast = useToast()
+  toast.add({
+    color: 'green',
+    title: t('common.save'),
+    description: t('messages.success'),
+  })
 }
 
 const openEditPolicy = () => {
@@ -1380,7 +1436,19 @@ const saveCommission = async () => {
           </template>
           <div class="space-y-4">
             <UFormGroup :label="$t('projects.refPercentage')">
-              <UInput v-model.number="(editRef as any).value" type="number" min="0" max="100" step="0.1" />
+              <UInput 
+                v-model.number="(editRef as any).value" 
+                type="number" 
+                :min="project?.commission_rate_min != null ? project.commission_rate_min : 0"
+                :max="project?.commission_rate_max != null ? project.commission_rate_max : 100"
+                step="0.1" 
+              />
+              <p v-if="project?.commission_rate_min != null || project?.commission_rate_max != null" class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                {{ $t('projects.commissionRateRange') }}: 
+                {{ project?.commission_rate_min != null ? `${project.commission_rate_min}%` : '—' }}
+                <span v-if="project?.commission_rate_min != null && project?.commission_rate_max != null"> - </span>
+                {{ project?.commission_rate_max != null ? `${project.commission_rate_max}%` : '—' }}
+              </p>
             </UFormGroup>
           </div>
           <template #footer>
@@ -1399,7 +1467,19 @@ const saveCommission = async () => {
           </template>
           <div class="space-y-4">
             <UFormGroup :label="$t('projects.refPercentage')">
-              <UInput v-model.number="(editRequest as any).ref_percentage" type="number" min="0" max="100" step="0.1" />
+              <UInput 
+                v-model.number="(editRequest as any).ref_percentage" 
+                type="number" 
+                :min="project?.commission_rate_min != null ? project.commission_rate_min : 0"
+                :max="project?.commission_rate_max != null ? project.commission_rate_max : 100"
+                step="0.1" 
+              />
+              <p v-if="project?.commission_rate_min != null || project?.commission_rate_max != null" class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                {{ $t('projects.commissionRateRange') }}: 
+                {{ project?.commission_rate_min != null ? `${project.commission_rate_min}%` : '—' }}
+                <span v-if="project?.commission_rate_min != null && project?.commission_rate_max != null"> - </span>
+                {{ project?.commission_rate_max != null ? `${project.commission_rate_max}%` : '—' }}
+              </p>
             </UFormGroup>
           </div>
           <template #footer>

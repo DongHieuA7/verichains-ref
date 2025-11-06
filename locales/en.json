@@ -99,6 +99,7 @@
     "policy": "Policy",
     "policyPlaceholder": "Enter policy details here...",
     "commissionRateRange": "Commission Rate",
+    "referralPercentageMustBeInRange": "Referral percentage must be between {min}% and {max}%",
     "viewPolicy": "View Policy",
     "editPolicy": "Edit Policy"
   },
