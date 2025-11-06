@@ -786,6 +786,30 @@ const calculateCommissionAmount = () => {
   return 0
 }
 
+// Status options for edit commission modal
+// - When status is 'requested': show 'confirmed' and 'paid'
+// - When status is 'confirmed': show only 'paid'
+// - When status is 'paid': no edit allowed (handled by button visibility)
+const commissionStatusOptions = computed(() => {
+  const currentStatus = editCommissionDraft.status
+  
+  if (currentStatus === 'requested') {
+    return [
+      { label: t('commissions.confirmed'), value: 'confirmed' },
+      { label: t('commissions.paid'), value: 'paid' },
+    ]
+  }
+  
+  if (currentStatus === 'confirmed') {
+    return [
+      { label: t('commissions.paid'), value: 'paid' },
+    ]
+  }
+  
+  // For 'paid' status, should not reach here (button is hidden)
+  return []
+})
+
 // Save commission
 const saveCommission = async () => {
   if (!editCommissionDraft.id || !isProjectAdmin.value) return
@@ -1214,7 +1238,7 @@ const saveCommission = async () => {
                           </template>
                           <template #actions-data="{ row: c }">
                             <div class="flex gap-2">
-                              <UButton v-if="isProjectAdmin" size="xs" color="gray" variant="outline" class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700" @click="openEditCommission(c)">{{ $t('common.edit') }}</UButton>
+                              <UButton v-if="isProjectAdmin && c.status !== 'paid'" size="xs" color="gray" variant="outline" class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700" @click="openEditCommission(c)">{{ $t('common.edit') }}</UButton>
                               <UButton v-if="isProjectAdmin && c.status === 'requested'" size="xs" color="green" variant="soft" @click="confirmCommission(c)">{{ $t('projects.approve') }}</UButton>
                             </div>
                           </template>
@@ -1596,11 +1620,7 @@ const saveCommission = async () => {
             <UFormGroup :label="$t('common.status')">
               <USelect 
                 v-model="editCommissionDraft.status"
-                :options="[
-                  { label: $t('commissions.requested'), value: 'requested' },
-                  { label: $t('commissions.confirmed'), value: 'confirmed' },
-                  { label: $t('commissions.paid'), value: 'paid' },
-                ]"
+                :options="commissionStatusOptions"
               />
             </UFormGroup>
           </div>

@@ -274,6 +274,30 @@ const statusOptions = computed(() => [
   { label: capitalize(t('commissions.paid')), value: 'paid' },
 ])
 
+// Status options for edit commission modal
+// - When status is 'requested': show 'confirmed' and 'paid'
+// - When status is 'confirmed': show only 'paid'
+// - When status is 'paid': no edit allowed (handled by button visibility)
+const commissionStatusOptions = computed(() => {
+  const currentStatus = editCommissionDraft.status
+  
+  if (currentStatus === 'requested') {
+    return [
+      { label: capitalize(t('commissions.confirmed')), value: 'confirmed' },
+      { label: capitalize(t('commissions.paid')), value: 'paid' },
+    ]
+  }
+  
+  if (currentStatus === 'confirmed') {
+    return [
+      { label: capitalize(t('commissions.paid')), value: 'paid' },
+    ]
+  }
+  
+  // For 'paid' status, should not reach here (button is hidden)
+  return []
+})
+
 // Capitalize helper
 const capitalize = (str: string) => {
   return str.charAt(0).toUpperCase() + str.slice(1)
@@ -605,6 +629,7 @@ watch(filteredProjects, () => {
         </template>
         <template #actions-data="{ row }">
           <UButton 
+            v-if="row.status !== 'paid'"
             size="xs" 
             color="gray" 
             variant="outline" 
@@ -669,11 +694,7 @@ watch(filteredProjects, () => {
           <UFormGroup :label="$t('common.status')">
             <USelect 
               v-model="editCommissionDraft.status"
-              :options="[
-                { label: capitalize($t('commissions.requested')), value: 'requested' },
-                { label: capitalize($t('commissions.confirmed')), value: 'confirmed' },
-                { label: capitalize($t('commissions.paid')), value: 'paid' },
-              ]"
+              :options="commissionStatusOptions"
             />
           </UFormGroup>
         </div>

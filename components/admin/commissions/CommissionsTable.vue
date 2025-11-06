@@ -199,7 +199,7 @@ const columns = computed(() => {
     <template v-if="props.canEdit || props.canApprove" #actions-data="{ row }">
       <div class="flex gap-2">
         <UButton 
-          v-if="props.canEdit"
+          v-if="props.canEdit && row.status !== 'paid'"
           size="xs" 
           color="gray" 
           variant="outline" 
