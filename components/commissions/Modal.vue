@@ -68,6 +68,10 @@ const localDraft = computed<Draft>({
   set: (val) => emit('update:draft', val),
 })
 
+const handleDraftUpdate = (val: Draft) => {
+  emit('update:draft', val)
+}
+
 const onCancel = () => {
   emit('cancel')
   isOpen.value = false
@@ -77,7 +81,8 @@ const onCancel = () => {
 <template>
   <BaseModal v-model="isOpen" :title="title">
     <CommissionsForm
-      v-model="(localDraft as any)"
+      :model-value="localDraft"
+      @update:model-value="handleDraftUpdate"
       :show-project="showProject"
       :project-options="projectOptions"
       :show-status="showStatus"
