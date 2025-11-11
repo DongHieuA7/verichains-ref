@@ -24,6 +24,7 @@ const adminNavItems = computed(() => [
 const isAdmin = ref(false)
 const adminRole = ref<string | null>(null)
 const isProjectOwner = ref(false)
+const { isGlobalAdmin } = useAdminRole()
 
 const checkAdminStatus = async () => {
   if (!user.value) {
@@ -33,6 +34,16 @@ const checkAdminStatus = async () => {
     return
   }
 
+  // Use RPC to check global admin status (more efficient)
+  const isGlobal = await isGlobalAdmin()
+  if (isGlobal) {
+    isAdmin.value = true
+    adminRole.value = 'global_admin'
+    isProjectOwner.value = false
+    return
+  }
+
+  // If not global admin, check if in admins table with role
   const { data, error } = await supabase
     .from('admins')
     .select('id, role')
@@ -50,9 +61,10 @@ const checkAdminStatus = async () => {
       .select('admins')
     
     if (projectsData) {
-      isProjectOwner.value = projectsData.some(p => 
-        p.admins && Array.isArray(p.admins) && p.admins.includes(user.value!.id)
-      ) || adminRole.value === 'project_owner'
+      isProjectOwner.value = projectsData.some((p: any) => {
+        const admins = (p.admins || []) as string[]
+        return Array.isArray(admins) && admins.includes(user.value!.id)
+      }) || adminRole.value === 'project_owner'
     } else {
       isProjectOwner.value = adminRole.value === 'project_owner'
     }
@@ -99,23 +111,6 @@ const signOut = async () => {
   <div>
 
     <CookieConsent></CookieConsent>
-
-    <!-- ========== HEADER ========== -->
-<!--    <header class="flex flex-wrap md:justify-start md:flex-nowrap z-50 w-full text-sm fixed top-0">-->
-<!--      <nav class="mt-6 relative max-w-[85rem] w-full bg-white border border-gray-200 rounded-xl md:rounded-[36px] mx-2 py-3 px-4 flex items-center gap-2 md:flex md:items-center md:justify-between md:py-0 md:px-6 lg:px-8 xl:mx-auto dark:bg-gray-900 dark:border-gray-800" aria-label="Global">-->
-<!--&lt;!&ndash;        <div class="md:flex items-center justify-between">&ndash;&gt;-->
-<!--&lt;!&ndash;          <NuxtLink class="flex-none gap-3 font-semibold flex items-center dark:text-white" to="/" aria-label="Brand">&ndash;&gt;-->
-<!--&lt;!&ndash;            <img src="/icon.svg" class="h-[50px]">&ndash;&gt;-->
-<!--&lt;!&ndash;            <p class="text-sm leading-tight hidden md:block">Nuxt Supabase <br> Starter</p>&ndash;&gt;-->
-<!--&lt;!&ndash;          </NuxtLink>&ndash;&gt;-->
-<!--&lt;!&ndash;        </div>&ndash;&gt;-->
-<!--        <div id="navbar-collapse-with-animation" class="hs-collapse overflow-hidden transition-all duration-300 basis-full grow md:block">-->
-<!--          <div class="flex justify-end gap-y-4 gap-x-3 md:flex-row md:items-center md:gap-y-0 md:gap-x-7 md:mt-0 md:ps-7">-->
-<!--          </div>-->
-<!--        </div>-->
-<!--      </nav>-->
-<!--    </header>-->
-    <!-- ========== END HEADER ========== -->
 
     <div class="mx-auto px-4 sm:px-6 lg:px-8 min-h-screen">
       <div class="grid grid-cols-12 gap-6 pt-6 pb-10">

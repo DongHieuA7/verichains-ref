@@ -24,16 +24,28 @@
 <script setup lang="ts">
 const { locale, locales, setLocale } = useI18n()
 
+// Type guard to check if locale is an object
+const isLocaleObject = (l: any): l is { code: string; name: string } => {
+  return typeof l === 'object' && l !== null && 'code' in l && 'name' in l
+}
+
 const localeOptions = computed(() => {
-  return locales.value.map((l: any) => ({
-    code: l.code,
-    name: l.name,
-    label: l.name
-  }))
+  return locales.value
+    .filter(isLocaleObject)
+    .map((l) => ({
+      code: l.code,
+      name: l.name,
+      label: l.name
+    }))
 })
 
-const currentLocale = computed(() => {
-  return locales.value.find((l: any) => l.code === locale.value) || locales.value[0]
+const currentLocale = computed((): { code: string; name: string } => {
+  const found = locales.value.find((l: any) => isLocaleObject(l) && l.code === locale.value)
+  if (found && isLocaleObject(found)) {
+    return found
+  }
+  const first = locales.value.find(isLocaleObject)
+  return first && isLocaleObject(first) ? first : { code: locale.value, name: locale.value }
 })
 
 const handleLocaleChange = (value: string) => {

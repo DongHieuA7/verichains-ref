@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { Project } from '~/composables/useProjectManagement'
+
 const { t } = useI18n()
 
 definePageMeta({ middleware: ['auth','project-owner'] })
@@ -11,8 +13,6 @@ const { isGlobalAdmin, canManageProject } = useAdminRole()
 const { getErrorMessage } = useErrorMessage()
 const { formatDate, formatValue, formatStatus, statusColor } = useCommissionFormatters()
 const { canManageProjectSync: canManageProjectSyncHelper, refreshCounts: refreshCountsHelper } = useProjectManagement()
-
-type Project = { id: string, name: string, admins: string[], commission_rate_min?: number | null, commission_rate_max?: number | null, policy?: string | null }
 const allProjects = ref<Project[]>([])
 const allUsers = ref<any[]>([])
 const allAdmins = ref<any[]>([])
@@ -28,10 +28,12 @@ const commissions = ref<any[]>([])
 const isLoadingCommissions = ref(false)
 
 // Commission filters
-const selectedProject = ref<string>('')
-const selectedStatus = ref<string>('')
-const selectedYear = ref<number | string>('')
-const selectedMonth = ref<string>('')
+const commissionFilters = reactive({
+  project: '',
+  status: '',
+  year: '',
+  month: '',
+})
 
 // Edit commission modal
 const isEditCommissionOpen = ref(false)
@@ -81,14 +83,6 @@ const canManageProjectSync = (project: Project | null): boolean => {
   return (project.admins || []).includes(currentAdminId.value)
 }
 
-const columns = computed(() => [
-  { key: 'name', label: t('common.project') },
-  { key: 'commissionRate', label: t('projects.commissionRateRange') },
-  { key: 'usersCount', label: t('common.users') },
-  { key: 'adminsCount', label: t('common.admins') },
-  { key: 'actions', label: t('common.actions') },
-])
-
 const goDetail = (id: string) => navigateTo({ name: 'admin-projects-id', params: { id } })
 
 const projectIdToUsersCount = ref<Record<string, number>>({})
@@ -99,8 +93,8 @@ const tableRows = computed(() => filteredProjects.value.map(p => ({
 })))
 
 const openEdit = async (p: Project) => {
-  // Check permission
-  const canManage = await canManageProject(p.id)
+  // Check permission using cache
+  const canManage = projectPermissions.value[p.id] ?? await canManageProject(p.id)
   if (!canManage) {
     const toast = useToast()
     toast.add({
@@ -133,8 +127,8 @@ const handleProjectUpdated = async () => {
 
 
 const openManageUsers = async (p: Project) => {
-  // Check permission
-  const canManage = await canManageProject(p.id)
+  // Check permission using cache
+  const canManage = projectPermissions.value[p.id] ?? await canManageProject(p.id)
   if (!canManage) {
     const toast = useToast()
     toast.add({
@@ -150,8 +144,8 @@ const openManageUsers = async (p: Project) => {
 }
 
 const openManageAdmins = async (p: Project) => {
-  // Check permission
-  const canManage = await canManageProject(p.id)
+  // Check permission using cache
+  const canManage = projectPermissions.value[p.id] ?? await canManageProject(p.id)
   if (!canManage) {
     const toast = useToast()
     toast.add({
@@ -164,6 +158,19 @@ const openManageAdmins = async (p: Project) => {
   
   selected.value = JSON.parse(JSON.stringify(p))
   isManageAdminsOpen.value = true
+}
+
+// Wrapper functions for event handlers (to handle async functions)
+const handleManageUsers = (project: Project) => {
+  openManageUsers(project)
+}
+
+const handleManageAdmins = (project: Project) => {
+  openManageAdmins(project)
+}
+
+const handleEdit = (project: Project) => {
+  openEdit(project)
 }
 
 const refreshCounts = async () => {
@@ -227,17 +234,17 @@ const getUserName = (userId: string) => {
 const filteredCommissions = computed(() => {
   let filtered = commissions.value
   
-  if (selectedProject.value) {
-    filtered = filtered.filter(c => c.project_id === selectedProject.value)
+  if (commissionFilters.project) {
+    filtered = filtered.filter(c => c.project_id === commissionFilters.project)
   }
   
-  if (selectedStatus.value) {
-    filtered = filtered.filter(c => c.status === selectedStatus.value)
+  if (commissionFilters.status) {
+    filtered = filtered.filter(c => c.status === commissionFilters.status)
   }
   
   // Filter by year if selected
-  if (selectedYear.value && selectedYear.value !== '') {
-    const yearStr = String(selectedYear.value)
+  if (commissionFilters.year && commissionFilters.year !== '') {
+    const yearStr = String(commissionFilters.year)
     filtered = filtered.filter(c => {
       const dateStr = getDateString(c.date)
       if (!dateStr) return false
@@ -247,8 +254,8 @@ const filteredCommissions = computed(() => {
   }
   
   // Filter by month if selected
-  if (selectedMonth.value && selectedMonth.value !== '') {
-    const monthStr = selectedMonth.value
+  if (commissionFilters.month && commissionFilters.month !== '') {
+    const monthStr = commissionFilters.month
     filtered = filtered.filter(c => {
       const dateStr = getDateString(c.date)
       if (!dateStr) return false
@@ -296,15 +303,12 @@ const capitalize = (str: string) => {
   return str.charAt(0).toUpperCase() + str.slice(1)
 }
 
-// Date filters
-const { yearOptions, monthOptions } = useDateFilters(selectedYear, selectedMonth)
-
 // Reset commission filters
 const resetCommissionFilters = () => {
-  selectedProject.value = ''
-  selectedStatus.value = ''
-  selectedYear.value = ''
-  selectedMonth.value = ''
+  commissionFilters.project = ''
+  commissionFilters.status = ''
+  commissionFilters.year = ''
+  commissionFilters.month = ''
 }
 
 // Open edit commission modal
@@ -358,12 +362,14 @@ const saveCommission = async () => {
       updateData.value = calculatedValue
     }
     
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('commissions')
       .update(updateData)
       .eq('id', editCommissionDraft.id)
     
-    if (error) throw error
+    if (error) {
+      throw error // Re-throw to be caught by catch block
+    }
     
     await fetchCommissions()
     isEditCommissionOpen.value = false
@@ -401,9 +407,22 @@ onMounted(async () => {
   
   // Pre-check permissions for all projects
   if (currentAdminId.value) {
-    for (const project of allProjects.value) {
-      const canManage = await canManageProject(project.id)
-      projectPermissions.value[project.id] = canManage
+    if (isGlobalAdminValue.value) {
+      // Global admin can manage all projects - no need to check
+      for (const project of allProjects.value) {
+        projectPermissions.value[project.id] = true
+      }
+    } else {
+      // For non-global admins, check if user is in admins array
+      // If user is in admins array, they can manage (no need to call RPC)
+      // If not, they cannot manage
+      for (const project of allProjects.value) {
+        if (project.admins && Array.isArray(project.admins) && project.admins.includes(currentAdminId.value)) {
+          projectPermissions.value[project.id] = true
+        } else {
+          projectPermissions.value[project.id] = false
+        }
+      }
     }
   }
   
@@ -426,67 +445,21 @@ watch(filteredProjects, () => {
         </div>
       </template>
 
-      <UTable :rows="tableRows" :columns="columns">
-        <template #name-data="{ row }">
-          <NuxtLink class="text-primary dark:text-primary font-bold hover:underline" :to="{ name: 'admin-projects-id', params: { id: row.id } }">{{ row.name }}</NuxtLink>
-        </template>
-        <template #commissionRate-data="{ row }">
-          <span v-if="row.commission_rate_min != null || row.commission_rate_max != null" class="text-sm text-gray-900 dark:text-white">
-            {{ row.commission_rate_min != null ? `${row.commission_rate_min}%` : '' }}
-            <span v-if="row.commission_rate_min != null && row.commission_rate_max != null"> - </span>
-            {{ row.commission_rate_max != null ? `${row.commission_rate_max}%` : '' }}
-          </span>
-          <span v-else class="text-gray-400 dark:text-gray-500 text-sm">—</span>
-        </template>
-        <template #usersCount-data="{ row }">
-          <span class="text-gray-900 dark:text-white">{{ row.usersCount }}</span>
-        </template>
-        <template #adminsCount-data="{ row }">
-          <span class="text-gray-900 dark:text-white">{{ row.adminsCount }}</span>
-        </template>
-        <template #actions-data="{ row }">
-          <div class="flex gap-2">
-            <UButton 
-              size="xs" 
-              color="primary" 
-              @click="openManageUsers(row)"
-              :disabled="!canManageProjectSync(row)"
-              :title="!canManageProjectSync(row) ? (isGlobalAdminValue ? $t('admin.onlyGlobalAdminsCanManageUsers') : $t('admin.onlyProjectAdminsCanManageUsers')) : ''"
-            >
-              {{ $t('projects.addUsers') }}
-            </UButton>
-            <UButton 
-              size="xs" 
-              color="blue" 
-              @click="openManageAdmins(row)"
-              :disabled="!canManageProjectSync(row)"
-              :title="!canManageProjectSync(row) ? (isGlobalAdminValue ? $t('admin.onlyGlobalAdminsCanManageAdmins') : $t('admin.onlyProjectAdminsCanManageAdmins')) : ''"
-            >
-              {{ $t('projects.addAdmins') }}
-            </UButton>
-            <UButton 
-              size="xs" 
-              color="gray" 
-              variant="outline" 
-              class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700"
-              @click="openEdit(row)"
-              :disabled="!canManageProjectSync(row)"
-              :title="!canManageProjectSync(row) ? (isGlobalAdminValue ? $t('admin.onlyGlobalAdminsCanEdit') : $t('admin.onlyProjectAdminsCanEdit')) : ''"
-            >
-              {{ $t('common.edit') }}
-            </UButton>
-          </div>
-        </template>
-        <template #empty>
-          <div class="text-center py-8 text-gray-500">
-            {{ $t('projects.noProjects') || 'No projects found' }}
-          </div>
-        </template>
-      </UTable>
+      <AdminProjectsTable
+        :projects="tableRows as any"
+        :loading="false"
+        :is-global-admin="isGlobalAdminValue"
+        :project-permissions="projectPermissions"
+        admins-label="admins"
+        :show-delete="false"
+        @manage-users="handleManageUsers"
+        @manage-admins="handleManageAdmins"
+        @edit="handleEdit"
+      />
     </UCard>
 
     <!-- Edit -->
-    <AdminProjectsProjectEditModal
+    <AdminProjectsEditModal
       v-model="isEditOpen"
       :project="editProject"
       :is-global-admin="isGlobalAdminValue"
@@ -495,19 +468,21 @@ watch(filteredProjects, () => {
     />
 
     <!-- Manage Users -->
-    <AdminProjectsProjectManageUsersModal
+    <AdminProjectsMembersModal
       v-model="isManageUsersOpen"
       :project="selected"
-      :all-users="allUsers"
+      member-type="users"
+      :all-members="allUsers"
       :is-global-admin="isGlobalAdminValue"
       @updated="handleProjectUpdated"
     />
 
     <!-- Manage Admins -->
-    <AdminProjectsProjectManageAdminsModal
+    <AdminProjectsMembersModal
       v-model="isManageAdminsOpen"
       :project="selected"
-      :all-admins="allAdmins"
+      member-type="admins"
+      :all-members="allAdmins"
       :projects="allProjects"
       :is-global-admin="isGlobalAdminValue"
       @updated="handleProjectUpdated"
@@ -518,199 +493,54 @@ watch(filteredProjects, () => {
       <template #header>
         <div class="flex items-center justify-between">
           <h2 class="font-semibold">{{ $t('admin.allCommissions') || 'All Commissions' }}</h2>
-          <div class="flex items-center gap-3">
-            <span class="text-sm text-gray-500">{{ $t('common.filter') }}</span>
-            <USelect 
-              v-model="selectedProject" 
-              :options="commissionProjectOptions" 
-              :placeholder="$t('common.project')"
-              class="min-w-[150px]"
-            />
-            <USelect 
-              v-model="selectedStatus" 
-              :options="statusOptions" 
-              :placeholder="$t('common.status')"
-              class="min-w-[120px]"
-            />
-            <USelect 
-              v-model="selectedYear" 
-              :options="yearOptions" 
-              :placeholder="$t('common.year')"
-              class="min-w-[100px]"
-            />
-            <USelect 
-              v-model="selectedMonth" 
-              :options="monthOptions" 
-              :placeholder="$t('common.month')"
-              class="min-w-[150px]"
-              :disabled="!selectedYear"
-            />
-            <UButton 
-              v-if="selectedProject || selectedStatus || selectedYear || selectedMonth"
-              color="gray" 
-              variant="soft" 
-              size="xs"
-              @click="resetCommissionFilters"
-              icon="i-lucide-x"
-            >
-              {{ $t('common.reset') || 'Reset' }}
-            </UButton>
-          </div>
+          <CommissionFilters
+            v-model="commissionFilters"
+            :show-project="true"
+            :project-options="commissionProjectOptions"
+            :show-status="true"
+            :status-options="statusOptions"
+            :show-year="true"
+            :show-month="true"
+            :show-reset="true"
+            layout="header"
+            @reset="resetCommissionFilters"
+          />
         </div>
       </template>
 
       <div v-if="isLoadingCommissions" class="text-center py-8">
         <div class="text-gray-500">{{ $t('common.loading') || 'Loading...' }}</div>
       </div>
-
-      <UTable 
+      <CommissionsTable
         v-else
-        :rows="filteredCommissions" 
-        :columns="[
-          { key: 'date', label: $t('common.date') },
-          { key: 'user_id', label: $t('common.user') },
-          { key: 'project_id', label: $t('common.project') },
-          { key: 'client_name', label: $t('commissions.clientName') },
-          { key: 'description', label: $t('common.description') },
-          { key: 'contract_amount', label: $t('commissions.contractAmount') },
-          { key: 'commission_rate', label: $t('commissions.commissionRate') },
-          { key: 'value', label: $t('commissions.commissionAmount') },
-          { key: 'status', label: $t('common.status') },
-          { key: 'actions', label: $t('common.actions') },
-        ]"
-      >
-        <template #date-data="{ row }">
-          <span class="text-gray-900 dark:text-white">{{ formatDate(row.date) }}</span>
-        </template>
-        <template #user_id-data="{ row }">
-          <NuxtLink 
-            class="text-primary dark:text-primary font-bold hover:underline" 
-            :to="`/admin/users/${row.user_id}`"
-          >
-            {{ getUserName(row.user_id) }}
-          </NuxtLink>
-        </template>
-        <template #project_id-data="{ row }">
-          <NuxtLink 
-            class="text-primary dark:text-primary font-bold hover:underline" 
-            :to="`/admin/projects/${row.project_id}`"
-          >
-            {{ getProjectName(row.project_id) }}
-          </NuxtLink>
-        </template>
-        <template #client_name-data="{ row }">
-          <span class="text-gray-900 dark:text-white">{{ row.client_name || '—' }}</span>
-        </template>
-        <template #description-data="{ row }">
-          <span class="max-w-xs truncate block text-gray-900 dark:text-white" :title="row.description">{{ row.description || '—' }}</span>
-        </template>
-        <template #contract_amount-data="{ row }">
-          <span class="text-gray-900 dark:text-white">{{ formatValue(row.contract_amount != null ? row.contract_amount : row.original_value, row.currency) }}</span>
-        </template>
-        <template #commission_rate-data="{ row }">
-          <span class="text-gray-900 dark:text-white">{{ row.commission_rate != null ? `${row.commission_rate}%` : '—' }}</span>
-        </template>
-        <template #value-data="{ row }">
-          <span class="text-gray-900 dark:text-white">{{ formatValue(row.value, row.currency) }}</span>
-        </template>
-        <template #status-data="{ row }">
-          <UBadge 
-            :label="formatStatus(row.status || 'unknown')" 
-            :color="statusColor(row.status)" 
-            variant="soft" 
-          />
-        </template>
-        <template #actions-data="{ row }">
-          <UButton 
-            v-if="row.status !== 'paid'"
-            size="xs" 
-            color="gray" 
-            variant="outline" 
-            class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700"
-            @click="openEditCommission(row)"
-          >
-            {{ $t('common.edit') }}
-          </UButton>
-        </template>
-        <template #empty>
-          <div class="text-center py-8 text-gray-500">
-            {{ $t('commissions.noCommissions') }}
-          </div>
-        </template>
-      </UTable>
+        :commissions="filteredCommissions"
+        :show-user="true"
+        :show-project="true"
+        :can-edit="true"
+        :users-map="Object.fromEntries(allUsers.map(u => [u.id, { name: u.name, email: u.email }]))"
+        :projects-map="Object.fromEntries(filteredProjects.map(p => [p.id, p.name || p.id]))"
+        @edit="openEditCommission"
+      />
     </UCard>
 
     <!-- Edit Commission Modal -->
-    <UModal v-model="isEditCommissionOpen">
-      <UCard>
-        <template #header>
-          <h3 class="font-semibold">{{ $t('commissions.editCommission') }}</h3>
-        </template>
-        <div class="space-y-4">
-          <UFormGroup :label="$t('commissions.clientName')">
-            <UInput 
-              v-model="editCommissionDraft.client_name" 
-              :placeholder="$t('commissions.clientNamePlaceholder')" 
-            />
-          </UFormGroup>
-          
-          <UFormGroup :label="$t('common.description')">
-            <UTextarea 
-              v-model="editCommissionDraft.description" 
-              :rows="3"
-            />
-          </UFormGroup>
-          
-          <UFormGroup :label="$t('commissions.contractAmount')">
-            <UInput 
-              v-model.number="editCommissionDraft.contract_amount" 
-              type="number" 
-              step="0.01"
-              :placeholder="$t('commissions.contractAmount')"
-            />
-          </UFormGroup>
-          
-          <UFormGroup :label="$t('commissions.commissionRate')">
-            <UInput 
-              v-model.number="editCommissionDraft.commission_rate" 
-              type="number" 
-              step="0.01" 
-              min="0" 
-              max="100"
-              :placeholder="$t('commissions.commissionRate')"
-            />
-            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              {{ $t('commissions.commissionAmount') }}: {{ formatValue(calculateCommissionAmount(), 'VND') }}
-            </p>
-          </UFormGroup>
-          
-          <UFormGroup :label="$t('common.status')">
-            <USelect 
-              v-model="editCommissionDraft.status"
-              :options="commissionStatusOptions"
-            />
-          </UFormGroup>
-        </div>
-        <template #footer>
-          <div class="flex justify-end gap-2">
-            <UButton 
-              color="gray" 
-              variant="outline" 
-              class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700"
-              @click="isEditCommissionOpen = false"
-            >
-              {{ $t('common.cancel') }}
-            </UButton>
-            <UButton 
-              color="primary" 
-              @click="saveCommission"
-            >
-              {{ $t('common.save') }}
-            </UButton>
-          </div>
-        </template>
-      </UCard>
-    </UModal>
+    <CommissionsModal
+      v-model="isEditCommissionOpen"
+      :title="$t('commissions.editCommission')"
+      :draft="(editCommissionDraft as any)"
+      :show-project="false"
+      :show-status="true"
+      :status-options="commissionStatusOptions"
+      :show-rate="true"
+      :min-rate="0"
+      :max-rate="100"
+      :show-calculated-hint="true"
+      currency="VND"
+      confirm-type="save"
+      @update:draft="val => Object.assign(editCommissionDraft, val)"
+      @cancel="() => { isEditCommissionOpen = false }"
+      @confirm="saveCommission"
+    />
   </div>
 </template>
 

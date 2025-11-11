@@ -1,27 +1,19 @@
 <script setup lang="ts">
 const { t } = useI18n()
+const supabase = useSupabaseClient()
+const { getErrorMessage } = useErrorMessage()
+const toast = useToast()
 
 definePageMeta({ middleware: ['auth','admin'] })
 
 useSeoMeta({ title: `Admin - ${t('users.users')}` })
 
-const isLoading = ref(false)
 const users = ref<any[]>([])
-const supabase = useSupabaseClient()
-const { formatDate } = useCommissionFormatters()
-const { getErrorMessage } = useErrorMessage()
-
-const form = reactive({
-  email: '',
-  name: '',
-  makeAdmin: false,
-})
-
+const isLoadingUsers = ref(false)
 const isInviteOpen = ref(false)
 const userToDelete = ref<string | null>(null)
 const isDeleteConfirmOpen = ref(false)
-
-const isLoadingUsers = ref(false)
+const isDeletingUser = ref(false)
 
 const fetchUsers = async () => {
   isLoadingUsers.value = true
@@ -41,11 +33,20 @@ const openDeleteConfirm = (userId: string) => {
   isDeleteConfirmOpen.value = true
 }
 
-const deleteUser = async () => {
+const userToDeleteInfo = computed(() => {
+  if (!userToDelete.value) return null
+  return users.value.find(u => u.id === userToDelete.value)
+})
+
+const handleUserInvited = async () => {
+  await fetchUsers()
+}
+
+const confirmDeleteUser = async () => {
   if (!userToDelete.value) return
   
   try {
-    isLoading.value = true
+    isDeletingUser.value = true
     
     // Get session token
     const { data: { session } } = await supabase.auth.getSession()
@@ -62,72 +63,27 @@ const deleteUser = async () => {
       }
     })
     
-    await fetchUsers()
     isDeleteConfirmOpen.value = false
     userToDelete.value = null
+    await fetchUsers()
     
-    const toast = useToast()
     toast.add({
       color: 'green',
       title: t('users.userDeleted'),
       description: t('users.userDeletedSuccessfully'),
     })
   } catch (error: any) {
-    const toast = useToast()
     toast.add({
       color: 'red',
       title: t('users.failedToDeleteUser'),
       description: getErrorMessage(error),
     })
   } finally {
-    isLoading.value = false
+    isDeletingUser.value = false
   }
 }
 
 onMounted(fetchUsers)
-
-const invite = async () => {
-  try {
-    isLoading.value = true
-    
-    // Get session token
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
-      throw new Error('Not authenticated')
-    }
-    
-    await $fetch('/api/admin/invite', { 
-      method: 'POST', 
-      body: { email: form.email, name: form.name, makeAdmin: form.makeAdmin },
-      headers: {
-        'Authorization': `Bearer ${session.access_token}`
-      }
-    })
-    
-    const invitedEmail = form.email
-    await fetchUsers()
-    form.email = ''
-    form.name = ''
-    form.makeAdmin = false
-    isInviteOpen.value = false
-    
-    const toast = useToast()
-    toast.add({
-      color: 'green',
-      title: t('users.userInvited'),
-      description: t('users.invitationSent', { email: invitedEmail }),
-    })
-  } catch (error: any) {
-    const toast = useToast()
-    toast.add({
-      color: 'red',
-      title: t('users.failedToInviteUser'),
-      description: getErrorMessage(error),
-    })
-  } finally {
-    isLoading.value = false
-  }
-}
 </script>
 
 <template>
@@ -136,7 +92,7 @@ const invite = async () => {
       <template #header>
         <div class="flex items-center justify-between">
           <h2 class="font-semibold">{{ $t('users.users') }}</h2>
-          <UButton color="primary" @click="isInviteOpen = true">{{ $t('users.inviteUser') }}</UButton>
+          <ActionButton type="create" :label="$t('users.inviteUser')" @click="isInviteOpen = true" />
         </div>
       </template>
 
@@ -148,88 +104,31 @@ const invite = async () => {
       <div v-else class="grid grid-cols-1 gap-6">
         <div>
           <h3 class="mb-2 font-medium">{{ $t('users.users') }}</h3>
-          <UTable :rows="users" :columns="[
-            { key: 'name', label: $t('common.name') },
-            { key: 'email', label: $t('common.email') },
-            { key: 'ref_code', label: $t('profile.referralCode') },
-            { key: 'created_at', label: $t('projects.created') },
-            { key: 'actions', label: $t('common.actions') },
-          ]">
-            <template #name-data="{ row }">
-              <NuxtLink 
-                class="text-gray-900 dark:text-primary hover:underline font-medium" 
-                :to="`/admin/users/${row.id}`"
-              >
-                {{ row.name || row.email }}
-              </NuxtLink>
-            </template>
-            <template #email-data="{ row }">
-              <span class="text-gray-900 dark:text-white">{{ row.email }}</span>
-            </template>
-            <template #ref_code-data="{ row }">
-              <span class="text-gray-900 dark:text-white">{{ row.ref_code || '—' }}</span>
-            </template>
-            <template #created_at-data="{ row }">
-              <span class="text-gray-900 dark:text-white">{{ formatDate(row.created_at) }}</span>
-            </template>
-            <template #actions-data="{ row }">
-              <div class="flex gap-2">
-                <UButton size="xs" color="primary" variant="soft" @click="navigateTo(`/admin/users/${row.id}`)">{{ $t('common.view') }}</UButton>
-                <UButton size="xs" color="red" variant="soft" @click="openDeleteConfirm(row.id)">{{ $t('common.delete') }}</UButton>
-              </div>
-            </template>
-            <template #empty>
-              <div class="text-center py-8 text-gray-500">
-                {{ $t('users.noUsersFound') || 'No users found' }}
-              </div>
-            </template>
-          </UTable>
+          <AdminUsersTable
+            :users="users"
+            :loading="isLoadingUsers"
+            @delete="openDeleteConfirm"
+          />
         </div>
       </div>
     </UCard>
 
-    <UModal v-model="isInviteOpen">
-      <UCard>
-        <template #header>
-          <h3 class="font-semibold">{{ $t('users.inviteUser') }}</h3>
-        </template>
-        <div class="space-y-4">
-          <UFormGroup :label="$t('common.email')">
-            <UInput v-model="form.email" type="email" @keyup.enter="invite" />
-          </UFormGroup>
-          <UFormGroup :label="$t('common.name')">
-            <UInput v-model="form.name" @keyup.enter="invite" />
-          </UFormGroup>
-        </div>
-        <template #footer>
-          <div class="flex justify-end gap-2">
-            <UButton color="gray" variant="outline" class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700" @click="isInviteOpen = false">{{ $t('common.cancel') }}</UButton>
-            <UButton color="primary" @click="invite" :loading="isLoading" :disabled="isLoading || !form.email">{{ $t('users.inviteUser') }}</UButton>
-          </div>
-        </template>
-      </UCard>
-    </UModal>
+    <AdminInviteUserModal
+      v-model="isInviteOpen"
+      @invited="handleUserInvited"
+    />
 
-    <UModal v-model="isDeleteConfirmOpen">
-      <UCard>
-        <template #header>
-          <h3 class="font-semibold">{{ $t('users.deleteUser') }}</h3>
-        </template>
-        <div class="space-y-4">
-          <p class="text-gray-600 dark:text-white">{{ $t('users.deleteUserConfirm') }}</p>
-          <p v-if="userToDelete" class="font-medium">
-            {{ users.find(u => u.id === userToDelete)?.email || userToDelete }}
-          </p>
-          <p class="text-sm text-red-600 dark:text-red-400">{{ $t('users.deleteUserWarning') }}</p>
-        </div>
-        <template #footer>
-          <div class="flex justify-end gap-2">
-            <UButton color="gray" variant="outline" class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700" @click="isDeleteConfirmOpen = false">{{ $t('common.cancel') }}</UButton>
-            <UButton color="red" @click="deleteUser" :loading="isLoading" class="dark:text-white" :disabled="isLoading">{{ $t('common.delete') }}</UButton>
-          </div>
-        </template>
-      </UCard>
-    </UModal>
+    <!-- Confirm Delete User Modal -->
+    <AdminConfirmDialog
+      v-model="isDeleteConfirmOpen"
+      :title="$t('users.deleteUser')"
+      :message="$t('users.deleteUserConfirm')"
+      :item-name="userToDeleteInfo?.name || userToDeleteInfo?.email || null"
+      :warning="$t('users.deleteUserWarning')"
+      action-type="delete"
+      :loading="isDeletingUser"
+      @confirm="confirmDeleteUser"
+    />
   </div>
 </template>
 

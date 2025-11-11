@@ -4,28 +4,28 @@ const { t } = useI18n()
 definePageMeta({ middleware: ['auth','admin'] })
 useSeoMeta({ title: `Admin - ${t('users.admins')}` })
 
-const isLoading = ref(false)
 const admins = ref<any[]>([])
 const allUsers = ref<any[]>([])
 const supabase = useSupabaseClient()
 const { isGlobalAdmin } = useAdminRole()
 const isGlobalAdminValue = ref(false)
-const { formatDate } = useCommissionFormatters()
 const { getErrorMessage } = useErrorMessage()
 
 // Filter
 const selectedRole = ref<string>('')
 
-const form = reactive({
-  email: '',
-  name: '',
-  selectedUserId: '', // For selecting existing user
-})
-
 const isInviteOpen = ref(false)
-const useExistingUser = ref(false)
-
+const isLoading = ref(false)
 const isLoadingList = ref(false)
+const isConfirmRemoveAdminOpen = ref(false)
+const adminToRemove = ref<string | null>(null)
+
+const handleAdminInvited = async () => {
+  await Promise.all([
+    fetchAdmins(),
+    fetchUsers() // Refresh users list as one might have been converted to admin
+  ])
+}
 
 const fetchAdmins = async () => {
   isLoadingList.value = true
@@ -57,68 +57,6 @@ onMounted(async () => {
   ])
 })
 
-const inviteAdmin = async () => {
-  try {
-    isLoading.value = true
-    
-    // Get session token
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
-      throw new Error('Not authenticated')
-    }
-    
-    // If using existing user, get email from selected user
-    let email = form.email
-    let name = form.name
-    
-    if (useExistingUser.value && form.selectedUserId) {
-      const selectedUser = allUsers.value.find(u => u.id === form.selectedUserId)
-      if (selectedUser) {
-        email = selectedUser.email
-        name = selectedUser.name || name
-      }
-    }
-    
-    if (!email) {
-      throw new Error('Email is required')
-    }
-    
-    await $fetch('/api/admin/invite', { 
-      method: 'POST', 
-      body: { email, name, makeAdmin: true },
-      headers: {
-        'Authorization': `Bearer ${session.access_token}`
-      }
-    })
-    
-    const invitedEmail = email
-    await Promise.all([
-      fetchAdmins(),
-      fetchUsers() // Refresh users list as one might have been converted to admin
-    ])
-    form.email = ''
-    form.name = ''
-    form.selectedUserId = ''
-    useExistingUser.value = false
-    isInviteOpen.value = false
-    
-    const toast = useToast()
-    toast.add({
-      color: 'green',
-      title: t('users.adminInvited'),
-      description: t('users.invitationSent', { email: invitedEmail }),
-    })
-  } catch (error: any) {
-    const toast = useToast()
-    toast.add({
-      color: 'red',
-      title: t('users.failedToInviteAdmin'),
-      description: getErrorMessage(error),
-    })
-  } finally {
-    isLoading.value = false
-  }
-}
 
 const userOptions = computed(() => {
   return allUsers.value
@@ -153,7 +91,8 @@ const getCurrentAdminId = async () => {
   currentAdminId.value = user?.id || null
 }
 
-const removeProjectOwner = async (adminId: string) => {
+// Wrapper to show confirm dialog
+const removeProjectOwnerWrapper = (adminId: string) => {
   // Only Global Admin can remove project owners
   if (!isGlobalAdminValue.value) {
     const toast = useToast()
@@ -177,6 +116,12 @@ const removeProjectOwner = async (adminId: string) => {
     return
   }
 
+  adminToRemove.value = adminId
+  isConfirmRemoveAdminOpen.value = true
+}
+
+const removeProjectOwner = async (adminId: string) => {
+
   try {
     isLoading.value = true
 
@@ -187,11 +132,11 @@ const removeProjectOwner = async (adminId: string) => {
       .select('id, admins')
 
     if (fetchError) {
-      throw fetchError
+      throw fetchError // Re-throw to be caught by catch block
     }
 
     // Filter projects where admin is in admins array
-    const projects = (allProjects || []).filter((p: any) => 
+    const projects = ((allProjects || []) as any[]).filter((p: any) => 
       p.admins && Array.isArray(p.admins) && p.admins.includes(adminId)
     )
 
@@ -201,13 +146,13 @@ const removeProjectOwner = async (adminId: string) => {
     // Remove admin from all projects (if any)
     for (const project of projects) {
       const nextAdmins = (project.admins || []).filter((id: string) => id !== adminId)
-      const { error: updateError } = await supabase
+      const { error: updateError } = await (supabase as any)
         .from('projects')
         .update({ admins: nextAdmins })
         .eq('id', project.id)
 
       if (updateError) {
-        throw updateError
+        throw updateError // Re-throw to be caught by catch block
       }
     }
 
@@ -218,7 +163,7 @@ const removeProjectOwner = async (adminId: string) => {
       .eq('id', adminId)
 
     if (deleteAdminErr) {
-      throw deleteAdminErr
+      throw deleteAdminErr // Re-throw to be caught by catch block
     }
 
     // Refresh admins list after removal
@@ -241,6 +186,15 @@ const removeProjectOwner = async (adminId: string) => {
     })
   } finally {
     isLoading.value = false
+  }
+}
+
+// Confirm and remove admin
+const confirmRemoveAdmin = async () => {
+  if (adminToRemove.value) {
+    await removeProjectOwner(adminToRemove.value)
+    isConfirmRemoveAdminOpen.value = false
+    adminToRemove.value = null
   }
 }
 </script>
@@ -269,7 +223,7 @@ const removeProjectOwner = async (adminId: string) => {
             >
               {{ $t('common.reset') || 'Reset' }}
             </UButton>
-            <UButton color="primary" @click="isInviteOpen = true">{{ $t('users.inviteAdmin') }}</UButton>
+            <ActionButton type="create" :label="$t('users.inviteAdmin')" @click="isInviteOpen = true" />
           </div>
         </div>
       </template>
@@ -278,109 +232,35 @@ const removeProjectOwner = async (adminId: string) => {
         <UIcon name="i-lucide-loader-2" class="w-8 h-8 animate-spin text-gray-400" />
         <span class="ml-3 text-gray-500">{{ $t('common.loading') || 'Loading...' }}</span>
       </div>
-      <UTable v-else :rows="filteredAdmins" :columns="[
-        { key: 'name', label: $t('common.name') },
-        { key: 'email', label: $t('common.email') },
-        { key: 'role', label: $t('common.role') || 'Role' },
-        { key: 'created_at', label: $t('projects.created') },
-        { key: 'actions', label: $t('common.actions') },
-      ]">
-        <template #name-data="{ row }">
-          <span class="text-gray-900 dark:text-white">{{ row.name || row.email }}</span>
-        </template>
-        <template #email-data="{ row }">
-          <span class="text-gray-900 dark:text-white">{{ row.email }}</span>
-        </template>
-        <template #role-data="{ row }">
-          <UBadge 
-            v-if="row.role === 'global_admin'" 
-            color="blue" 
-            variant="soft"
-            size="xs"
-          >
-            {{ $t('admin.globalAdmin') || 'Global Admin' }}
-          </UBadge>
-          <UBadge 
-            v-else-if="row.role === 'project_owner'" 
-            color="gray" 
-            variant="soft"
-            size="xs"
-          >
-            {{ $t('admin.projectOwner') }}
-          </UBadge>
-          <span v-else class="text-gray-400 dark:text-gray-500 text-sm">—</span>
-        </template>
-        <template #created_at-data="{ row }">
-          <span class="text-gray-900 dark:text-white">{{ formatDate(row.created_at) }}</span>
-        </template>
-        <template #actions-data="{ row }">
-          <UButton 
-            v-if="isGlobalAdminValue && row.role === 'project_owner' && row.id !== currentAdminId"
-            size="xs" 
-            color="red" 
-            variant="soft" 
-            :loading="isLoading"
-            :disabled="isLoading"
-            :title="$t('admin.removeProjectOwnerFromAllProjects')"
-            @click="removeProjectOwner(row.id)"
-          >
-            {{ $t('common.remove') }}
-          </UButton>
-          <span v-else-if="row.role === 'global_admin' || row.id === currentAdminId" class="text-gray-400 dark:text-gray-500 text-sm">
-            -
-          </span>
-        </template>
-        <template #empty>
-          <div class="text-center py-8 text-gray-500">
-            {{ $t('users.noAdminsFound') || 'No admins found' }}
-          </div>
-        </template>
-      </UTable>
+      <AdminAdminsTable
+        v-else
+        :admins="filteredAdmins"
+        :loading="isLoadingList"
+        :is-global-admin="isGlobalAdminValue"
+        :current-admin-id="currentAdminId"
+        :is-removing="isLoading"
+        @remove="removeProjectOwnerWrapper"
+      />
     </UCard>
 
-    <UModal v-model="isInviteOpen">
-      <UCard>
-        <template #header>
-          <h3 class="font-semibold">{{ $t('users.inviteAdmin') }}</h3>
-        </template>
-        <div class="space-y-4">
-          <UFormGroup>
-            <UCheckbox v-model="useExistingUser" :label="$t('users.useExistingUser') || 'Use existing user'" />
-          </UFormGroup>
-          
-          <UFormGroup v-if="useExistingUser" :label="$t('common.user')">
-            <USelect 
-              v-model="form.selectedUserId" 
-              :options="userOptions" 
-              :placeholder="$t('users.selectUser') || 'Select user'"
-              searchable
-            />
-          </UFormGroup>
-          
-          <template v-else>
-            <UFormGroup :label="$t('common.email')">
-              <UInput v-model="form.email" type="email" @keyup.enter="inviteAdmin" />
-            </UFormGroup>
-            <UFormGroup :label="$t('common.name')">
-              <UInput v-model="form.name" @keyup.enter="inviteAdmin" />
-            </UFormGroup>
-          </template>
-        </div>
-        <template #footer>
-          <div class="flex justify-end gap-2">
-            <UButton color="gray" variant="outline" class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700" @click="isInviteOpen = false">{{ $t('common.cancel') }}</UButton>
-            <UButton 
-              color="primary" 
-              @click="inviteAdmin" 
-              :loading="isLoading" 
-              :disabled="isLoading || (useExistingUser ? !form.selectedUserId : !form.email)"
-            >
-              {{ $t('users.inviteAdmin') }}
-            </UButton>
-          </div>
-        </template>
-      </UCard>
-    </UModal>
+    <AdminInviteAdminModal
+      v-model="isInviteOpen"
+      :user-options="userOptions"
+      :all-users="allUsers"
+      @invited="handleAdminInvited"
+    />
+
+    <!-- Confirm Remove Admin Modal -->
+    <AdminConfirmDialog
+      v-model="isConfirmRemoveAdminOpen"
+      :title="$t('admin.removeProjectOwner')"
+      :message="$t('admin.removeProjectOwnerConfirm')"
+      :item-name="adminToRemove ? (admins.find(a => a.id === adminToRemove)?.name || admins.find(a => a.id === adminToRemove)?.email || adminToRemove) : null"
+      :warning="$t('admin.removeProjectOwnerWarning')"
+      action-type="remove"
+      :loading="isLoading"
+      @confirm="confirmRemoveAdmin"
+    />
   </div>
 </template>
 

@@ -113,12 +113,6 @@ const fetchProjectsMap = async () => {
 }
 
 
-// Format functions
-const { formatDate, formatValue, formatStatus } = useCommissionFormatters()
-
-// Year and month filters
-const { yearOptions, monthOptions } = useDateFilters(selectedYear, selectedMonth)
-
 const filteredCommissions = computed(() => {
   const byYear = userCommissions.value.filter(c => (c.date || '').slice(0,4) === String(selectedYear.value))
   if (!selectedMonth.value) return byYear
@@ -134,7 +128,8 @@ const totals = computed(() => {
     requestedVND: 0,
   }
   
-  for (const c of userCommissions.value) {
+  const commissionsList: any[] = userCommissions.value || []
+  for (const c of commissionsList) {
     const value = Number(c.value || 0)
     
     result.totalVND += value
@@ -146,39 +141,8 @@ const totals = computed(() => {
   return result
 })
 
-// Helpers for commissions table (inline table replacing component)
+// Helpers for commissions
 const projectRefInfo = computed(() => Object.fromEntries(userProjects.value.map(p => [p.id, { ref_percentage: p.ref_percentage || 0 }])))
-
-const getOriginalValueDisplay = (commission: any) => {
-  return commission.contract_amount != null ? commission.contract_amount : (commission.original_value != null ? commission.original_value : commission.value)
-}
-
-const getCommissionReceivedDisplay = (commission: any) => {
-  if (commission.status === 'confirmed' || commission.status === 'paid') {
-    return commission.value
-  }
-  if (commission.contract_amount != null && commission.commission_rate != null) {
-    return Number(commission.contract_amount || 0) * (Number(commission.commission_rate || 0) / 100)
-  }
-  const refInfo = projectRefInfo.value[commission.project_id]
-  const refPercentage = refInfo?.ref_percentage || 0
-  if (refPercentage > 0) {
-    const originalValue = commission.original_value != null ? commission.original_value : commission.value
-    return originalValue * (refPercentage / 100)
-  }
-  return commission.value
-}
-
-const getProjectName = (projectId?: string) => {
-  if (!projectId) return '—'
-  return projectsMap.value[projectId] || projectId
-}
-
-const getStatusColor = (status: string) => {
-  if (status === 'paid') return 'green'
-  if (status === 'confirmed') return 'blue'
-  return 'yellow'
-}
 
 // Confirm commission
 const confirmCommission = async (commission: any) => {
@@ -208,13 +172,15 @@ const confirmCommission = async (commission: any) => {
     calculatedValue = currentOriginalValue * (refPercentage / 100)
   }
   
-  const { error } = await supabase
+  const updateData: Record<string, any> = {
+    status: 'confirmed',
+    value: calculatedValue,
+    original_value: commission.contract_amount != null ? commission.contract_amount : commission.original_value, // Store contract_amount as original_value
+  }
+  
+  const { error } = await (supabase as any)
     .from('commissions')
-    .update({ 
-      status: 'confirmed',
-      value: calculatedValue,
-      original_value: commission.contract_amount != null ? commission.contract_amount : commission.original_value // Store contract_amount as original_value
-    })
+    .update(updateData)
     .eq('id', commission.id)
   
   if (error) {
@@ -268,164 +234,22 @@ watch(userCommissions, () => {
 
       <div v-else class="grid grid-cols-1 gap-6">
         <!-- User Info -->
-        <UCard>
-          <template #header>
-            <h3 class="font-medium">{{ $t('users.userProfile') }}</h3>
-          </template>
-          <div class="space-y-2 text-sm" v-if="userProfile">
-            <div><span class="text-gray-500 dark:text-gray-400">{{ $t('common.name') }}:</span> <span class="font-medium text-gray-900 dark:text-white">{{ userProfile.name || '—' }}</span></div>
-            <div><span class="text-gray-500 dark:text-gray-400">{{ $t('common.email') }}:</span> <span class="font-medium text-gray-900 dark:text-white">{{ userProfile.email }}</span></div>
-            <div><span class="text-gray-500 dark:text-gray-400">{{ $t('profile.company') }}:</span> <span class="font-medium text-gray-900 dark:text-white">{{ userProfile.company || '—' }}</span></div>
-            <div><span class="text-gray-500 dark:text-gray-400">{{ $t('profile.about') }}:</span> <span class="font-medium text-gray-900 dark:text-white">{{ userProfile.descript || '—' }}</span></div>
-            <div>
-              <span class="text-gray-500 dark:text-gray-400">{{ $t('profile.referralCode') }}:</span>
-              <UBadge color="primary" variant="soft" :label="userProfile.ref_code" />
-            </div>
-            <div><span class="text-gray-500 dark:text-gray-400">{{ $t('projects.created') }}:</span> <span class="font-medium text-gray-900 dark:text-white">{{ formatDate(userProfile.created_at) }}</span></div>
-          </div>
-        </UCard>
+        <AdminUsersProfileCard :user-profile="userProfile" />
 
         <!-- Projects Joined -->
-        <UCard>
-          <template #header>
-            <h3 class="font-medium">{{ $t('commissions.projectsJoined') }}</h3>
-          </template>
-          <UTable :rows="userProjects" :columns="[
-            { key: 'name', label: $t('common.name') },
-            { key: 'commission_rate', label: $t('projects.refPercentage') },
-            { key: 'joined_at', label: $t('projects.joinedRequested') },
-          ]">
-            <template #name-data="{ row }">
-              <span class="text-gray-900 dark:text-white">{{ row.name }}</span>
-            </template>
-            <template #joined_at-data="{ row }">
-              <span class="text-gray-900 dark:text-white">{{ formatDate(row.joined_at) }}</span>
-            </template>
-            <template #commission_rate-data="{ row }">
-              <span v-if="row.commission_rate_min != null || row.commission_rate_max != null" class="text-gray-900 dark:text-white">
-                <template v-if="row.commission_rate_min != null && row.commission_rate_max != null">
-                  {{ row.commission_rate_min }}% - {{ row.commission_rate_max }}%
-                </template>
-                <template v-else>
-                  {{ (row.commission_rate_min ?? row.commission_rate_max) }}%
-                </template>
-              </span>
-              <span v-else class="text-gray-400 dark:text-gray-500">—</span>
-            </template>
-            <template #empty>
-              <div class="text-sm text-gray-500 py-4 text-center">
-                {{ $t('projects.noProjectsAvailable') }}
-              </div>
-            </template>
-          </UTable>
-        </UCard>
+        <AdminUsersProjectsCard :projects="userProjects" />
 
         <!-- Commissions -->
-        <UCard>
-          <template #header>
-            <div class="flex items-center justify-between">
-              <h3 class="font-medium">{{ $t('users.userCommissions') }}</h3>
-              <div class="flex items-center gap-3">
-                <span class="text-sm text-gray-500">{{ $t('common.filter') }}</span>
-                <USelect v-model="selectedYear" :options="yearOptions" />
-                <USelect v-model="selectedMonth" :options="monthOptions" />
-              </div>
-            </div>
-          </template>
-
-          <!-- Statistics -->
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <StatisticsCard
-              :title="$t('commissions.totalReceived')"
-              icon="i-lucide-badge-dollar-sign"
-              icon-color="green"
-              :value-VND="totals.paidVND"
-            />
-            <StatisticsCard
-              :title="$t('commissions.pendingCommission')"
-              icon="i-lucide-hourglass"
-              icon-color="orange"
-              :value-VND="totals.confirmedVND"
-            />
-            <StatisticsCard
-              :title="$t('commissions.requested')"
-              icon="i-lucide-clock"
-              icon-color="yellow"
-              :value-VND="totals.requestedVND"
-            />
-          </div>
-
-          <!-- Commissions Table (inline) -->
-          <UTable 
-            :rows="filteredCommissions" 
-            :columns="[
-              { key: 'date', label: $t('common.date') },
-              { key: 'project_id', label: $t('common.project') },
-              { key: 'client_name', label: $t('commissions.clientName') },
-              { key: 'description', label: $t('common.description') },
-              { key: 'value', label: $t('commissions.contractAmount') },
-              { key: 'commission_rate', label: $t('commissions.commissionRate') },
-              { key: 'commission_received', label: $t('commissions.commissionAmount') },
-              { key: 'status', label: $t('common.status') },
-              { key: 'actions', label: $t('common.actions') },
-            ]"
-          >
-            <template #date-data="{ row }">
-              <span class="text-gray-900 dark:text-white">{{ formatDate(row.date) }}</span>
-            </template>
-            <template #project_id-data="{ row }">
-              <NuxtLink 
-                v-if="row.project_id"
-                class="text-primary dark:text-primary font-bold hover:underline" 
-                :to="`/admin/projects/${row.project_id}`"
-              >
-                {{ getProjectName(row.project_id) }}
-              </NuxtLink>
-              <span v-else>—</span>
-            </template>
-            <template #client_name-data="{ row }">
-              <span class="text-gray-900 dark:text-white">{{ row.client_name || '—' }}</span>
-            </template>
-            <template #description-data="{ row }">
-              <span class="text-gray-900 dark:text-white">{{ row.description || '—' }}</span>
-            </template>
-            <template #value-data="{ row }">
-              <span class="text-gray-900 dark:text-white">{{ formatValue(getOriginalValueDisplay(row), row.currency || 'VND') }}</span>
-            </template>
-            <template #commission_rate-data="{ row }">
-              <span class="text-gray-900 dark:text-white">{{ row.commission_rate != null ? `${row.commission_rate}%` : '—' }}</span>
-            </template>
-            <template #commission_received-data="{ row }">
-              <span class="text-gray-900 dark:text-white">{{ formatValue(getCommissionReceivedDisplay(row), row.currency || 'VND') }}</span>
-            </template>
-            <template #status-data="{ row }">
-              <UBadge 
-                :label="formatStatus(row.status || 'unknown')" 
-                :color="getStatusColor(row.status)" 
-                variant="soft" 
-              />
-            </template>
-            <template #actions-data="{ row }">
-              <div class="flex gap-2">
-                <UButton 
-                  v-if="row.status === 'requested'"
-                  size="xs" 
-                  color="green" 
-                  variant="soft"
-                  @click="confirmCommission(row)"
-                >
-                  {{ $t('projects.approve') }}
-                </UButton>
-                <span v-else class="text-xs text-gray-400 dark:text-gray-500">—</span>
-              </div>
-            </template>
-            <template #empty>
-              <div class="text-sm text-gray-500 py-8 text-center">
-                {{ $t('commissions.noCommissions') }}
-              </div>
-            </template>
-          </UTable>
-        </UCard>
+        <AdminUsersCommissionsCard
+          :commissions="userCommissions"
+          :filtered-commissions="filteredCommissions"
+          :projects-map="projectsMap"
+          :project-ref-info="projectRefInfo"
+          :totals="totals"
+          v-model:selected-year="selectedYear"
+          v-model:selected-month="selectedMonth"
+          @confirm="confirmCommission"
+        />
       </div>
     </UCard>
   </div>

@@ -82,50 +82,43 @@ const saveProject = async () => {
 </script>
 
 <template>
-  <UModal v-model="isOpen">
-    <UCard>
-      <template #header>
-        <h3 class="font-semibold">{{ $t('projects.editProject') }}</h3>
-      </template>
-      <div class="space-y-4">
-        <UFormGroup :label="$t('common.name')">
-          <UInput v-model="draft.name" @keyup.enter="saveProject" />
-        </UFormGroup>
-        <UFormGroup :label="$t('projects.commissionRateMin')">
-          <UInput 
-            v-model.number="draft.commission_rate_min" 
-            type="number" 
-            step="0.01" 
-            min="0" 
-            max="100"
-            :placeholder="$t('projects.commissionRateMinPlaceholder')"
-          />
-        </UFormGroup>
-        <UFormGroup :label="$t('projects.commissionRateMax')">
-          <UInput 
-            v-model.number="draft.commission_rate_max" 
-            type="number" 
-            step="0.01" 
-            min="0" 
-            max="100"
-            :placeholder="$t('projects.commissionRateMaxPlaceholder')"
-          />
-        </UFormGroup>
-        <UFormGroup :label="$t('projects.policy')">
-          <UTextarea 
-            v-model="draft.policy" 
-            :rows="4"
-            :placeholder="$t('projects.policyPlaceholder')"
-          />
-        </UFormGroup>
+  <Modal v-model="isOpen" :title="$t('projects.editProject')">
+    <UFormGroup :label="$t('common.name')">
+      <UInput v-model="draft.name" @keyup.enter="saveProject" />
+    </UFormGroup>
+    <UFormGroup :label="$t('projects.commissionRateMin')">
+      <UInput 
+        v-model.number="draft.commission_rate_min" 
+        type="number" 
+        step="0.01" 
+        min="0" 
+        max="100"
+        :placeholder="$t('projects.commissionRateMinPlaceholder')"
+      />
+    </UFormGroup>
+    <UFormGroup :label="$t('projects.commissionRateMax')">
+      <UInput 
+        v-model.number="draft.commission_rate_max" 
+        type="number" 
+        step="0.01" 
+        min="0" 
+        max="100"
+        :placeholder="$t('projects.commissionRateMaxPlaceholder')"
+      />
+    </UFormGroup>
+    <UFormGroup :label="$t('projects.policy')">
+      <UTextarea 
+        v-model="draft.policy" 
+        :rows="4"
+        :placeholder="$t('projects.policyPlaceholder')"
+      />
+    </UFormGroup>
+    <template #footer>
+      <div class="flex justify-end gap-2">
+        <ActionButton type="cancel" @click="isOpen = false" />
+        <ActionButton type="save" :disabled="!draft.name.trim()" @click="saveProject" />
       </div>
-      <template #footer>
-        <div class="flex justify-end gap-2">
-          <UButton color="gray" variant="outline" class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700" @click="isOpen = false">{{ $t('common.cancel') }}</UButton>
-          <UButton color="primary" @click="saveProject" :disabled="!draft.name.trim()">{{ $t('common.save') }}</UButton>
-        </div>
-      </template>
-    </UCard>
-  </UModal>
+    </template>
+  </Modal>
 </template>
 

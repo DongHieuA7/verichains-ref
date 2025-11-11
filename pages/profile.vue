@@ -18,7 +18,6 @@ const profile = reactive({
 })
 
 const isLoading = ref(false)
-const isSaving = ref(false)
 const baseUrl = ref('')
 const refLink = computed(() => baseUrl.value ? `${baseUrl.value}/?ref=${profile.ref_code}` : `/?ref=${profile.ref_code}`)
 
@@ -37,7 +36,12 @@ const fetchProfile = async () => {
       .maybeSingle()
     
     if (error) {
-      toast.add({ color: 'red', title: $t('common.error') || 'Error', description: error.message, icon: 'i-lucide-x-circle' })
+      // If it's a permission error, try fetching via API (bypasses RLS)
+      if (error.code === '42501' || error.message?.includes('permission') || error.message?.includes('policy')) {
+        await createProfile()
+        return
+      }
+      toast.add({ color: 'red', title: t('common.error') || 'Error', description: error.message, icon: 'i-lucide-x-circle' })
       return
     }
     
@@ -49,25 +53,25 @@ const fetchProfile = async () => {
       profile.descript = data.descript || ''
       profile.ref_code = data.ref_code || ''
     } else {
-      // Profile doesn't exist, create one
+      // Profile doesn't exist - use API to get/create (bypasses RLS)
       await createProfile()
     }
   } catch (error: any) {
-    toast.add({ color: 'red', title: $t('common.error') || 'Error', description: error.message, icon: 'i-lucide-x-circle' })
+    toast.add({ color: 'red', title: t('common.error') || 'Error', description: error.message, icon: 'i-lucide-x-circle' })
   } finally {
     isLoading.value = false
   }
 }
 
-// Create profile if it doesn't exist
+// Fetch or create profile via API (bypasses RLS)
 const createProfile = async () => {
   if (!user.value) return
   
   try {
-    // Use server API endpoint to create profile (bypasses RLS)
+    // Use server API endpoint to get/create profile (bypasses RLS)
     const { data: session } = await supabase.auth.getSession()
     if (!session?.session?.access_token) {
-      toast.add({ color: 'red', title: $t('common.error') || 'Error', description: 'No session found', icon: 'i-lucide-x-circle' })
+      toast.add({ color: 'red', title: t('common.error') || 'Error', description: 'No session found', icon: 'i-lucide-x-circle' })
       return
     }
 
@@ -87,17 +91,16 @@ const createProfile = async () => {
       profile.ref_code = response.ref_code || ''
     }
   } catch (error: any) {
-    console.error('Error creating profile:', error)
-    toast.add({ color: 'red', title: $t('common.error') || 'Error', description: error.message || 'Failed to create profile', icon: 'i-lucide-x-circle' })
+    toast.add({ color: 'red', title: t('common.error') || 'Error', description: error.message || 'Failed to fetch/create profile', icon: 'i-lucide-x-circle' })
   }
 }
 
 const copyRef = async () => {
   try {
     await navigator.clipboard.writeText(refLink.value)
-    toast.add({ color: 'green', title: $t('profile.referralLinkCopied'), icon: 'i-lucide-check-circle' })
+    toast.add({ color: 'green', title: t('profile.referralLinkCopied'), icon: 'i-lucide-check-circle' })
   } catch {
-    toast.add({ color: 'red', title: $t('profile.copyFailed'), icon: 'i-lucide-x-circle' })
+    toast.add({ color: 'red', title: t('profile.copyFailed'), icon: 'i-lucide-x-circle' })
   }
 }
 
@@ -113,41 +116,14 @@ const shareRef = async () => {
 }
 
 const isEditOpen = ref(false)
-const draft = reactive({ company: '', descript: '' })
 
 const openEdit = () => {
-  draft.company = profile.company
-  draft.descript = profile.descript
   isEditOpen.value = true
 }
 
-const saveProfile = async () => {
-  if (!user.value) return
-  
-  isSaving.value = true
-  try {
-    const { error } = await supabase
-      .from('user_profiles')
-      .update({
-        company: draft.company,
-        descript: draft.descript,
-      })
-      .eq('id', user.value.id)
-    
-    if (error) {
-      toast.add({ color: 'red', title: $t('common.error') || 'Error', description: error.message, icon: 'i-lucide-x-circle' })
-      return
-    }
-    
-    profile.company = draft.company
-    profile.descript = draft.descript
-    isEditOpen.value = false
-    toast.add({ color: 'green', title: $t('profile.profileUpdated'), icon: 'i-lucide-check-circle' })
-  } catch (error: any) {
-    toast.add({ color: 'red', title: $t('common.error') || 'Error', description: error.message, icon: 'i-lucide-x-circle' })
-  } finally {
-    isSaving.value = false
-  }
+const handleProfileSaved = (data: { company: string; descript: string }) => {
+  profile.company = data.company
+  profile.descript = data.descript
 }
 
 onMounted(async () => {
@@ -170,7 +146,11 @@ onMounted(async () => {
         <template #header>
           <div class="flex items-center justify-between">
             <h2 class="font-semibold">{{ $t('profile.myProfile') }}</h2>
-            <UButton size="xs" color="gray" variant="outline" class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700" @click="openEdit" :disabled="isLoading">{{ $t('common.edit') }}</UButton>
+            <ActionButton 
+              type="edit"
+              :disabled="isLoading"
+              @click="openEdit"
+            />
           </div>
         </template>
         <div class="flex items-center gap-4">
@@ -198,12 +178,8 @@ onMounted(async () => {
           <div class="flex items-center justify-between">
             <h3 class="font-semibold">{{ $t('profile.referral') }}</h3>
             <div class="flex gap-2">
-              <UButton color="gray"
-                       variant="outline"
-                       class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700"
-                       @click="copyRef"
-                       :disabled="!profile.ref_code">{{ $t('profile.copyLink') }}</UButton>
-              <UButton color="primary" @click="shareRef" :disabled="!profile.ref_code">{{ $t('profile.share') }}</UButton>
+              <ActionButton type="cancel" :label="$t('profile.copyLink')" :disabled="!profile.ref_code" @click="copyRef" />
+              <ActionButton type="create" :label="$t('profile.share')" :disabled="!profile.ref_code" @click="shareRef" />
             </div>
           </div>
         </template>
@@ -216,27 +192,12 @@ onMounted(async () => {
       </UCard>
     </div>
   </div>
-  <UModal v-model="isEditOpen">
-    <UCard>
-      <template #header>
-        <h3 class="font-semibold">{{ $t('profile.editMyProfile') }}</h3>
-      </template>
-      <div class="space-y-4">
-        <UFormGroup :label="$t('profile.company')">
-          <UInput v-model="draft.company" @keyup.enter="saveProfile" :disabled="isSaving" />
-        </UFormGroup>
-        <UFormGroup :label="$t('profile.aboutDescription')">
-          <UTextarea v-model="draft.descript" rows="4" :disabled="isSaving" />
-        </UFormGroup>
-      </div>
-      <template #footer>
-        <div class="flex justify-end gap-2 mt-2">
-          <UButton color="gray" variant="outline" class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700" @click="isEditOpen = false" :disabled="isSaving">{{ $t('common.cancel') }}</UButton>
-          <UButton color="primary" @click="saveProfile" :disabled="!draft.company || isSaving" :loading="isSaving">{{ $t('common.save') }}</UButton>
-        </div>
-      </template>
-    </UCard>
-  </UModal>
+  
+  <ProfileEditModal
+    v-model="isEditOpen"
+    :initial-data="{ company: profile.company, descript: profile.descript }"
+    @saved="handleProfileSaved"
+  />
 </template>
 
 <style scoped></style>

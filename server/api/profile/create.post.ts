@@ -10,22 +10,22 @@ export default defineEventHandler(async (event) => {
   const token = authHeader.replace('Bearer ', '')
   const config = useRuntimeConfig(event)
   
-  // Get Supabase config
+  // Get Supabase config - check process.env first (more reliable in server context)
   const supabaseUrl = 
-    (config as any).supabaseUrl || 
-    (config as any).public?.supabaseUrl || 
+    process.env.NUXT_PUBLIC_SUPABASE_URL ||
     process.env.SUPABASE_URL ||
-    process.env.NUXT_PUBLIC_SUPABASE_URL
+    config.public?.supabaseUrl ||
+    (config as any).supabaseUrl
   
   const anonKey = 
-    (config as any).public?.supabaseAnonKey || 
-    process.env.SUPABASE_ANON_KEY ||
     process.env.NUXT_PUBLIC_SUPABASE_ANON_KEY ||
-    process.env.NUXT_PUBLIC_SUPABASE_KEY
+    process.env.NUXT_PUBLIC_SUPABASE_KEY ||
+    process.env.SUPABASE_ANON_KEY ||
+    config.public?.supabaseAnonKey
   
   const serviceRoleKey = 
-    (config as any).supabaseServiceRoleKey ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    (config as any).supabaseServiceRoleKey
   
   if (!supabaseUrl || !anonKey) {
     throw createError({ statusCode: 500, statusMessage: 'Supabase config missing' })
@@ -85,4 +85,5 @@ export default defineEventHandler(async (event) => {
 
   return newProfile
 })
+
 

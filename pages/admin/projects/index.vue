@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { Project } from '~/composables/useProjectManagement'
+
 const { t } = useI18n()
 
 definePageMeta({ middleware: ['auth','admin'] })
@@ -10,35 +12,20 @@ const currentAdminId = computed(() => user.value?.id || '')
 const { isGlobalAdmin, canManageProject } = useAdminRole()
 const { getErrorMessage } = useErrorMessage()
 const { canManageProjectSync: canManageProjectSyncHelper, refreshCounts: refreshCountsHelper } = useProjectManagement()
-
-type Project = { id: string, name: string, admins: string[], commission_rate_min?: number | null, commission_rate_max?: number | null, policy?: string | null }
 const projects = ref<Project[]>([])
 const allUsers = ref<any[]>([])
 const allAdmins = ref<any[]>([])
+const isLoadingUsers = ref(false)
+const isLoadingAdmins = ref(false)
 
 const isCreateOpen = ref(false)
 const isEditOpen = ref(false)
 const isManageUsersOpen = ref(false)
 const isManageAdminsOpen = ref(false)
-
-const draft = reactive<{ 
-  id?: string, 
-  name: string, 
-  selectedUsers: string[],
-  selectedOwners: string[],
-  commission_rate_min?: number | null,
-  commission_rate_max?: number | null,
-  policy?: string | null
-}>({ 
-  name: '', 
-  selectedUsers: [],
-  selectedOwners: [],
-  commission_rate_min: null,
-  commission_rate_max: null,
-  policy: null
-})
 const selected = ref<Project | null>(null)
 const editProject = ref<Project | null>(null)
+const isConfirmDeleteProjectOpen = ref(false)
+const projectToDelete = ref<Project | null>(null)
 
 // Role states
 const isGlobalAdminValue = ref(false)
@@ -72,14 +59,6 @@ const availableOwnerOptions = computed(() => {
     }))
 })
 
-const columns = computed(() => [
-  { key: 'name', label: t('common.project') },
-  { key: 'commissionRate', label: t('projects.commissionRateRange') },
-  { key: 'usersCount', label: t('common.users') },
-  { key: 'adminsCount', label: t('projects.projectOwners') },
-  { key: 'actions', label: t('common.actions') },
-])
-
 const goDetail = (id: string) => navigateTo({ name: 'admin-projects-id', params: { id } })
 
 const projectIdToUsersCount = ref<Record<string, number>>({})
@@ -89,20 +68,15 @@ const tableRows = computed(() => projects.value.map(p => ({
   adminsCount: (p.admins || []).length,
 })))
 
-const openCreate = () => { 
-  draft.id = undefined
-  draft.name = ''
-  draft.selectedUsers = []
-  draft.selectedOwners = []
-  draft.commission_rate_min = null
-  draft.commission_rate_max = null
-  draft.policy = null
-  isCreateOpen.value = true 
+const openCreate = async () => {
+  // Lazy load users and admins when opening create modal
+  await Promise.all([fetchUsers(), fetchAdmins()])
+  isCreateOpen.value = true
 }
 
 const openEdit = async (p: Project) => {
-  // Check permission
-  const canManage = await canManageProject(p.id)
+  // Check permission using cache
+  const canManage = projectPermissions.value[p.id] ?? await canManageProject(p.id)
   if (!canManage) {
     const toast = useToast()
     toast.add({
@@ -117,96 +91,13 @@ const openEdit = async (p: Project) => {
   isEditOpen.value = true 
 }
 
-const createProject = async () => {
-  if (!currentAdminId.value) {
-    const toast = useToast()
-    toast.add({
-      color: 'red',
-      title: t('messages.userMustBeLoggedIn'),
-      description: 'You must be logged in as admin to create a project',
-    })
-    return
+const handleProjectCreated = async () => {
+  // Refresh projects list
+  const { data: projs } = await supabase.from('projects').select('id, name, admins, commission_rate_min, commission_rate_max, policy').order('name')
+  if (projs) {
+    projects.value = projs
   }
-  
-  // Add selected owners to project, or use current admin as default
-  // Ensure selectedOwners is array of strings (user IDs)
-  let admins: string[] = []
-  if (draft.selectedOwners.length > 0) {
-    // Extract values if they are objects, otherwise use as is
-    admins = draft.selectedOwners.map(owner => 
-      typeof owner === 'string' ? owner : (owner as any)?.value || owner
-    ).filter((id): id is string => typeof id === 'string' && id.length > 0)
-  }
-  
-  // If no valid owners selected, use current admin as default
-  if (admins.length === 0) {
-    admins = [currentAdminId.value]
-  }
-  
-  const { data, error } = await supabase
-    .from('projects')
-    .insert({ 
-      name: draft.name.trim(), 
-      admins,
-      commission_rate_min: draft.commission_rate_min || null,
-      commission_rate_max: draft.commission_rate_max || null,
-      policy: draft.policy || null
-    })
-    .select('id')
-    .single()
-  
-  if (error) {
-    const toast = useToast()
-    toast.add({
-      color: 'red',
-      title: t('messages.failedToCreateProject'),
-      description: getErrorMessage(error),
-    })
-    return
-  }
-  
-  if (data) {
-    const newProject = { 
-      id: data.id, 
-      name: draft.name.trim(), 
-      admins,
-      commission_rate_min: draft.commission_rate_min || null,
-      commission_rate_max: draft.commission_rate_max || null,
-      policy: draft.policy || null
-    }
-    projects.value.unshift(newProject)
-    
-    // Add selected users to project if any
-    if (draft.selectedUsers.length > 0) {
-      // Ensure selectedUsers is array of strings (user IDs)
-      const userIds = draft.selectedUsers.map(user => 
-        typeof user === 'string' ? user : (user as any)?.value || user
-      ).filter((id): id is string => typeof id === 'string' && id.length > 0)
-      
-      const userInserts = userIds.map(uid => ({
-        project_id: data.id,
-        user_id: uid,
-        ref_percentage: 10
-      }))
-      
-      const { error: usersError } = await supabase
-        .from('user_project_info')
-        .insert(userInserts)
-      
-      if (usersError) {
-        // Non-fatal, just log
-      } else {
-        await refreshCounts()
-      }
-    }
-  }
-  
-  isCreateOpen.value = false
-  draft.selectedUsers = []
-  draft.selectedOwners = []
-  draft.commission_rate_min = null
-  draft.commission_rate_max = null
-  draft.policy = null
+  await refreshCounts()
 }
 const handleProjectUpdated = async () => {
   // Refresh projects list
@@ -225,8 +116,8 @@ const handleProjectUpdated = async () => {
 }
 
 const deleteProject = async (p: Project) => {
-  // Check if current user can manage this project
-  const canManage = await canManageProject(p.id)
+  // Check if current user can manage this project using cache
+  const canManage = projectPermissions.value[p.id] ?? await canManageProject(p.id)
   if (!canManage) {
     const toast = useToast()
     toast.add({
@@ -265,8 +156,8 @@ const deleteProject = async (p: Project) => {
 
 
 const openManageUsers = async (p: Project) => {
-  // Check permission
-  const canManage = await canManageProject(p.id)
+  // Check permission using cache
+  const canManage = projectPermissions.value[p.id] ?? await canManageProject(p.id)
   if (!canManage) {
     const toast = useToast()
     toast.add({
@@ -278,12 +169,14 @@ const openManageUsers = async (p: Project) => {
   }
   
   selected.value = JSON.parse(JSON.stringify(p))
+  // Lazy load users when opening modal
+  await fetchUsers()
   isManageUsersOpen.value = true
 }
 
 const openManageAdmins = async (p: Project) => {
-  // Check permission
-  const canManage = await canManageProject(p.id)
+  // Check permission using cache
+  const canManage = projectPermissions.value[p.id] ?? await canManageProject(p.id)
   if (!canManage) {
     const toast = useToast()
     toast.add({
@@ -295,7 +188,37 @@ const openManageAdmins = async (p: Project) => {
   }
   
   selected.value = JSON.parse(JSON.stringify(p))
+  // Lazy load admins when opening modal
+  await fetchAdmins()
   isManageAdminsOpen.value = true
+}
+
+// Wrapper functions for event handlers (to handle async functions)
+const handleManageUsers = (project: Project) => {
+  openManageUsers(project)
+}
+
+const handleManageAdmins = (project: Project) => {
+  openManageAdmins(project)
+}
+
+const handleEdit = (project: Project) => {
+  openEdit(project)
+}
+
+// Wrapper to show confirm dialog
+const handleDelete = (project: Project) => {
+  projectToDelete.value = project
+  isConfirmDeleteProjectOpen.value = true
+}
+
+// Confirm and delete project
+const confirmDeleteProject = async () => {
+  if (projectToDelete.value) {
+    await deleteProject(projectToDelete.value)
+    isConfirmDeleteProjectOpen.value = false
+    projectToDelete.value = null
+  }
 }
 
 const refreshCounts = async () => {
@@ -305,29 +228,60 @@ const refreshCounts = async () => {
 
 const isLoadingProjects = ref(false)
 
+// Lazy load users when needed
+const fetchUsers = async () => {
+  if (allUsers.value.length > 0) return // Already loaded
+  isLoadingUsers.value = true
+  try {
+    const { data } = await supabase.from('user_profiles').select('id, email, name')
+    allUsers.value = data || []
+  } finally {
+    isLoadingUsers.value = false
+  }
+}
+
+// Lazy load admins when needed
+const fetchAdmins = async () => {
+  if (allAdmins.value.length > 0) return // Already loaded
+  isLoadingAdmins.value = true
+  try {
+    const { data } = await supabase.from('admins').select('id, email, name, role')
+    allAdmins.value = data || []
+  } finally {
+    isLoadingAdmins.value = false
+  }
+}
+
 onMounted(async () => {
   isLoadingProjects.value = true
   // Check if user is global admin
   isGlobalAdminValue.value = await isGlobalAdmin()
   
   try {
-    const [{ data: projs }, { data: users }, { data: admins }] = await Promise.all([
-      supabase.from('projects').select('id, name, admins, commission_rate_min, commission_rate_max, policy').order('name'),
-      supabase.from('user_profiles').select('id, email, name'),
-      supabase.from('admins').select('id, email, name, role')
-    ])
+    const { data: projs } = await supabase.from('projects').select('id, name, admins, commission_rate_min, commission_rate_max, policy').order('name')
     projects.value = projs || []
-    allUsers.value = users || []
-    allAdmins.value = admins || []
   } finally {
     isLoadingProjects.value = false
   }
   
   // Pre-check permissions for all projects
   if (currentAdminId.value) {
-    for (const project of projects.value) {
-      const canManage = await canManageProject(project.id)
-      projectPermissions.value[project.id] = canManage
+    if (isGlobalAdminValue.value) {
+      // Global admin can manage all projects - no need to check
+      for (const project of projects.value) {
+        projectPermissions.value[project.id] = true
+      }
+    } else {
+      // For non-global admins, check if user is in admins array
+      // If user is in admins array, they can manage (no need to call RPC)
+      // If not, they cannot manage
+      for (const project of projects.value) {
+        if (project.admins && Array.isArray(project.admins) && project.admins.includes(currentAdminId.value)) {
+          projectPermissions.value[project.id] = true
+        } else {
+          projectPermissions.value[project.id] = false
+        }
+      }
     }
   }
   
@@ -341,14 +295,7 @@ onMounted(async () => {
       <template #header>
         <div class="flex items-center justify-between">
           <h2 class="font-semibold">{{ $t('common.projects') }}</h2>
-          <UButton 
-            color="primary" 
-            @click="openCreate"
-            :disabled="!isGlobalAdminValue"
-            :title="!isGlobalAdminValue ? $t('admin.onlyGlobalAdminsCanCreateProjects') || 'Only global admins can create projects' : ''"
-          >
-            {{ $t('projects.newProject') }}
-          </UButton>
+          <ActionButton type="create" :label="$t('projects.newProject')" :disabled="!isGlobalAdminValue" :title="!isGlobalAdminValue ? $t('admin.onlyGlobalAdminsCanCreateProjects') || 'Only global admins can create projects' : ''" @click="openCreate" />
         </div>
       </template>
 
@@ -356,161 +303,30 @@ onMounted(async () => {
         <UIcon name="i-lucide-loader-2" class="w-8 h-8 animate-spin text-gray-400" />
         <span class="ml-3 text-gray-500">{{ $t('common.loading') || 'Loading...' }}</span>
       </div>
-      <UTable v-else :rows="tableRows" :columns="columns">
-        <template #name-data="{ row }">
-          <NuxtLink class="text-primary dark:text-primary font-bold hover:underline" :to="{ name: 'admin-projects-id', params: { id: row.id } }">{{ row.name }}</NuxtLink>
-        </template>
-        <template #commissionRate-data="{ row }">
-          <span v-if="row.commission_rate_min != null || row.commission_rate_max != null" class="text-sm text-gray-900 dark:text-white">
-            {{ row.commission_rate_min != null ? `${row.commission_rate_min}%` : '' }}
-            <span v-if="row.commission_rate_min != null && row.commission_rate_max != null"> - </span>
-            {{ row.commission_rate_max != null ? `${row.commission_rate_max}%` : '' }}
-          </span>
-          <span v-else class="text-gray-400 dark:text-gray-500 text-sm">—</span>
-        </template>
-        <template #usersCount-data="{ row }">
-          <span class="text-gray-900 dark:text-white">{{ row.usersCount }}</span>
-        </template>
-        <template #adminsCount-data="{ row }">
-          <span class="text-gray-900 dark:text-white">{{ row.adminsCount }}</span>
-        </template>
-        <template #actions-data="{ row }">
-          <div class="flex gap-2">
-            <UButton 
-              size="xs" 
-              color="primary" 
-              @click="openManageUsers(row)"
-              :disabled="!canManageProjectSync(row)"
-              :title="!canManageProjectSync(row) ? (isGlobalAdminValue ? $t('admin.onlyGlobalAdminsCanManageUsers') : $t('admin.onlyProjectAdminsCanManageUsers')) : ''"
-            >
-              {{ $t('projects.addUsers') }}
-            </UButton>
-            <UButton 
-              size="xs" 
-              color="blue" 
-              @click="openManageAdmins(row)"
-              :disabled="!canManageProjectSync(row)"
-              :title="!canManageProjectSync(row) ? (isGlobalAdminValue ? $t('admin.onlyGlobalAdminsCanManageAdmins') : $t('admin.onlyProjectAdminsCanManageAdmins')) : ''"
-            >
-              {{ $t('projects.addAdmins') }}
-            </UButton>
-            <UButton 
-              size="xs" 
-              color="gray" 
-              variant="outline" 
-              class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700"
-              @click="openEdit(row)"
-              :disabled="!canManageProjectSync(row)"
-              :title="!canManageProjectSync(row) ? (isGlobalAdminValue ? $t('admin.onlyGlobalAdminsCanEdit') : $t('admin.onlyProjectAdminsCanEdit')) : ''"
-            >
-              {{ $t('common.edit') }}
-            </UButton>
-            <UButton 
-              size="xs" 
-              color="red" 
-              variant="soft" 
-              @click="deleteProject(row)"
-              :disabled="!canManageProjectSync(row) || !isGlobalAdminValue"
-              :title="!isGlobalAdminValue ? $t('admin.onlyGlobalAdminsCanDelete') || 'Only global admins can delete projects' : (!canManageProjectSync(row) ? $t('admin.onlyProjectAdminsCanDelete') : '')"
-            >
-              {{ $t('common.delete') }}
-            </UButton>
-          </div>
-        </template>
-        <template #empty>
-          <div class="text-center py-8 text-gray-500">
-            {{ $t('projects.noProjectsAvailable') || 'No projects found' }}
-          </div>
-        </template>
-      </UTable>
+      <AdminProjectsTable
+        v-else
+        :projects="tableRows as any"
+        :loading="isLoadingProjects"
+        :is-global-admin="isGlobalAdminValue"
+        :project-permissions="projectPermissions"
+        admins-label="projectOwners"
+        @manage-users="handleManageUsers"
+        @manage-admins="handleManageAdmins"
+        @edit="handleEdit"
+        @delete="handleDelete"
+      />
     </UCard>
 
     <!-- Create -->
-    <UModal v-model="isCreateOpen" :ui="{ width: 'sm:max-w-2xl', container: 'items-start' }">
-      <UCard>
-        <template #header>
-          <h3 class="font-semibold">{{ $t('projects.newProject') }}</h3>
-        </template>
-        <div class="space-y-4 max-h-[calc(100vh-250px)] overflow-y-auto pb-4" style="padding-left: 0.25rem; padding-right: 0.25rem;">
-          <UFormGroup :label="$t('projects.projectName')">
-            <UInput v-model="draft.name" @keyup.enter="createProject" />
-          </UFormGroup>
-          <div class="grid grid-cols-2 gap-4">
-            <UFormGroup :label="$t('projects.commissionRateMin')">
-              <UInput 
-                v-model.number="(draft as any).commission_rate_min" 
-                type="number" 
-                step="0.01" 
-                min="0" 
-                max="100"
-                :placeholder="$t('projects.commissionRateMinPlaceholder')"
-              />
-            </UFormGroup>
-            <UFormGroup :label="$t('projects.commissionRateMax')">
-              <UInput 
-                v-model.number="(draft as any).commission_rate_max" 
-                type="number" 
-                step="0.01" 
-                min="0" 
-                max="100"
-                :placeholder="$t('projects.commissionRateMaxPlaceholder')"
-              />
-            </UFormGroup>
-          </div>
-          <UFormGroup :label="$t('projects.policy')">
-            <UTextarea 
-              v-model="(draft as any).policy" 
-              :rows="4"
-              :placeholder="$t('projects.policyPlaceholder')"
-              :ui="{ base: 'resize-none' }"
-            />
-          </UFormGroup>
-          <UFormGroup :label="$t('projects.projectOwners')">
-            <USelectMenu 
-              v-model="(draft as any).selectedOwners" 
-              :options="availableOwnerOptions" 
-              :placeholder="$t('projects.selectOwners')"
-              multiple
-              searchable
-              value-attribute="value"
-              :ui="{ 
-                width: 'w-full',
-                option: { container: 'max-h-60 overflow-y-auto overflow-x-hidden' },
-                popper: { placement: 'bottom-start', strategy: 'fixed' }
-              }"
-              class="w-full"
-            />
-            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ $t('projects.selectOwnersNote') }}</p>
-          </UFormGroup>
-          <UFormGroup :label="$t('projects.addUsers')">
-            <USelectMenu 
-              v-model="(draft as any).selectedUsers" 
-              :options="userOptions" 
-              :placeholder="$t('projects.selectUsersToAdd')"
-              multiple
-              searchable
-              value-attribute="value"
-              :ui="{ 
-                width: 'w-full',
-                option: { container: 'max-h-60 overflow-y-auto overflow-x-hidden' },
-                popper: { placement: 'bottom-start', strategy: 'fixed' }
-              }"
-              class="w-full"
-            />
-            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ $t('projects.usersNote') }}</p>
-          </UFormGroup>
-        </div>
-        <template #footer>
-          <div class="flex justify-end gap-2">
-            <UButton color="gray" variant="outline" class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700" @click="isCreateOpen = false">{{ $t('common.cancel') }}</UButton>
-            <UButton color="primary" @click="createProject" :disabled="!draft.name.trim()">{{ $t('common.create') }}</UButton>
-          </div>
-        </template>
-      </UCard>
-    </UModal>
+    <AdminProjectsCreateModal
+      v-model="isCreateOpen"
+      :available-owner-options="availableOwnerOptions"
+      :user-options="userOptions"
+      @created="handleProjectCreated"
+    />
 
     <!-- Edit -->
-    <AdminProjectsProjectEditModal
+    <AdminProjectsEditModal
       v-model="isEditOpen"
       :project="editProject"
       :is-global-admin="isGlobalAdminValue"
@@ -519,22 +335,35 @@ onMounted(async () => {
     />
 
     <!-- Manage Users -->
-    <AdminProjectsProjectManageUsersModal
+    <AdminProjectsMembersModal
       v-model="isManageUsersOpen"
       :project="selected"
-      :all-users="allUsers"
+      member-type="users"
+      :all-members="allUsers"
       :is-global-admin="isGlobalAdminValue"
       @updated="handleProjectUpdated"
     />
 
     <!-- Manage Admins -->
-    <AdminProjectsProjectManageAdminsModal
+    <AdminProjectsMembersModal
       v-model="isManageAdminsOpen"
       :project="selected"
-      :all-admins="allAdmins"
+      member-type="admins"
+      :all-members="allAdmins"
       :projects="projects"
       :is-global-admin="isGlobalAdminValue"
       @updated="handleProjectUpdated"
+    />
+
+    <!-- Confirm Delete Project Modal -->
+    <AdminConfirmDialog
+      v-model="isConfirmDeleteProjectOpen"
+      :title="$t('projects.deleteProject')"
+      :message="$t('projects.deleteProjectConfirm')"
+      :item-name="projectToDelete?.name || null"
+      :warning="$t('projects.deleteProjectWarning')"
+      action-type="delete"
+      @confirm="confirmDeleteProject"
     />
   </div>
 </template>

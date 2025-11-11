@@ -57,9 +57,9 @@ export const useProjectManagement = () => {
     return (data || []).map((r: any) => r.user_id)
   }
 
-  // Refresh user counts
+  // Refresh user counts - only select project_id to reduce data transfer
   const refreshCounts = async (): Promise<Record<string, number>> => {
-    const { data } = await supabase.from('user_project_info').select('project_id, user_id')
+    const { data } = await supabase.from('user_project_info').select('project_id')
     const counts: Record<string, number> = {}
     ;(data || []).forEach(r => { counts[r.project_id] = (counts[r.project_id] || 0) + 1 })
     return counts

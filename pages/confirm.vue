@@ -3,11 +3,43 @@ const user = useSupabaseUser()
 const supabase = useSupabaseClient()
 
 definePageMeta({
-  layout: false // No layout during redirect
+  layout: false, // No layout during redirect
+  auth: false,
 })
 
+const waitForSession = async () => {
+  // Nuxt Supabase module tự động xử lý callback nếu có code trong URL
+  // Chỉ cần gọi getSession để trigger exchange
+  await supabase.auth.getSession()
+
+  // Đợi user được set
+  if (!user.value) {
+    await new Promise<void>((resolve) => {
+      const { data: sub } = supabase.auth.onAuthStateChange((ev) => {
+        if (ev === 'SIGNED_IN' || ev === 'TOKEN_REFRESHED' || ev === 'INITIAL_SESSION') {
+          sub.subscription.unsubscribe()
+          resolve()
+        }
+      })
+      // Fallback timeout
+      setTimeout(() => resolve(), 2000)
+    })
+  }
+
+  // Dọn query sau khi đã xử lý
+  const clean = new URL(location.href)
+  clean.searchParams.delete('code')
+  clean.searchParams.delete('state')
+  history.replaceState({}, '', clean.toString())
+}
+
 const checkAndRedirect = async () => {
-  if (!user.value) return
+
+  if (!process.client) return
+
+  await waitForSession()
+
+  if (!user.value) return navigateTo('/sign-in', { replace: true })
   
   try {
     const { data } = await supabase

@@ -25,10 +25,10 @@ export default defineNuxtConfig({
 	},
 	supabase: {
 		redirect: false,
-        // redirectOptions: {
-        //   login: '/sign-in',
-        //   callback: 'https://verichains-ref.vercel.app/auth/callback'
-        // }
+        redirectOptions: {
+          login: '/auth/login',
+          callback: `${process.env.NUXT_PUBLIC_APP_URL || 'http://localhost:3000'}/auth/callback`
+        }
 	},
 	runtimeConfig: {
 		public: {

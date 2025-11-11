@@ -11,26 +11,41 @@ const isLoading = ref(false)
 const isLoadingData = ref(false)
 const commissions = ref<any[]>([])
 const isModalOpen = ref(false)
-const editDraft = reactive<{ id: string; client_name: string; description: string; contract_amount: number | undefined }>({ id: '', client_name: '', description: '', contract_amount: undefined })
+const editDraft = reactive<{ 
+  id?: string
+  client_name?: string
+  description?: string
+  contract_amount?: number | null
+}>({ 
+  id: undefined, 
+  client_name: '', 
+  description: '', 
+  contract_amount: null 
+})
 const isCreateOpen = ref(false)
-const selectedYear = ref<number | string>('')
-const selectedMonth = ref<string>('')
-const selectedProject = ref<string>('')
-const selectedStatus = ref<string>('')
+const filters = reactive({
+  project: '',
+  status: '',
+  year: '',
+  month: '',
+})
 
-const form = reactive({
+const form = reactive<{
+  project_id?: string
+  client_name?: string
+  description?: string
+  contract_amount?: number | null
+}>({
   project_id: '',
   client_name: '',
   description: '',
-  contract_amount: undefined as unknown as number,
+  contract_amount: null,
 })
 
 const projects = ref<any[]>([])
 // Store ref_percentage for each project
 const projectRefPercentages = ref<Record<string, number>>({})
 
-// Format functions
-const { formatDate, formatValue, formatStatus } = useCommissionFormatters()
 
 const fetchProjects = async () => {
   if (!user.value) return
@@ -88,13 +103,21 @@ const fetchProjects = async () => {
 }
 
 const fetchCommissions = async () => {
-  if (!user.value) return
+  if (!user.value) {
+    return
+  }
   try {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('commissions')
       .select('id, project_id, client_name, description, date, status, value, original_value, currency, contract_amount, commission_rate')
       .eq('user_id', user.value.id)
       .order('date', { ascending: false })
+    
+    if (error) {
+      commissions.value = []
+      return
+    }
+    
     commissions.value = data || []
   } catch (error) {
     commissions.value = []
@@ -111,32 +134,86 @@ onMounted(async () => {
   }
 })
 
-const { yearOptions, monthOptions } = useDateFilters(selectedYear, selectedMonth)
-
 const filteredCommissions = computed(() => {
+  if (!Array.isArray(commissions.value)) {
+    return []
+  }
+  
   let filtered = commissions.value
   
   // Filter by year (if year is selected)
-  if (selectedYear.value) {
-    filtered = filtered.filter(c => (c.date || '').slice(0,4) === String(selectedYear.value))
+  if (filters.year) {
+    filtered = filtered.filter(c => (c.date || '').slice(0,4) === String(filters.year))
   }
   
   // Filter by month
-  if (selectedMonth.value) {
-    filtered = filtered.filter(c => (c.date || '').slice(0,7) === selectedMonth.value)
+  if (filters.month) {
+    filtered = filtered.filter(c => (c.date || '').slice(0,7) === filters.month)
   }
   
   // Filter by project
-  if (selectedProject.value) {
-    filtered = filtered.filter(c => c.project_id === selectedProject.value)
+  if (filters.project) {
+    filtered = filtered.filter(c => c.project_id === filters.project)
   }
   
   // Filter by status
-  if (selectedStatus.value) {
-    filtered = filtered.filter(c => c.status === selectedStatus.value)
+  if (filters.status) {
+    filtered = filtered.filter(c => c.status === filters.status)
   }
   
   return filtered
+})
+
+// Statistics cards configuration
+const statisticsCards = computed(() => {
+  const { t } = useI18n()
+  return [
+    {
+      title: t('commissions.projectsJoined'),
+      icon: 'i-lucide-folders',
+      iconColor: 'blue',
+      value: projectCount.value,
+      gridCols: 'md:grid-cols-3'
+    },
+    {
+      title: t('commissions.totalContractAmount'),
+      icon: 'i-lucide-file-text',
+      iconColor: 'blue',
+      valueVND: totals.value.totalContractAmountVND,
+      gridCols: 'md:grid-cols-3'
+    },
+    {
+      title: t('commissions.pendingContractAmount'),
+      icon: 'i-lucide-clock',
+      iconColor: 'yellow',
+      valueVND: totals.value.pendingContractAmountVND,
+      gridCols: 'md:grid-cols-3'
+    },
+    {
+      title: t('commissions.receivedCommission'),
+      icon: 'i-lucide-badge-dollar-sign',
+      iconColor: 'green',
+      valueVND: totals.value.receivedCommissionVND,
+      gridCols: 'md:grid-cols-2'
+    },
+    {
+      title: t('commissions.pendingCommission'),
+      icon: 'i-lucide-hourglass',
+      iconColor: 'orange',
+      valueVND: totals.value.pendingCommissionVND,
+      gridCols: 'md:grid-cols-2'
+    }
+  ]
+})
+
+// Group cards by grid layout
+const statisticsCardsByRow = computed(() => {
+  const row1 = statisticsCards.value.slice(0, 3) // First 3 cards (3 columns)
+  const row2 = statisticsCards.value.slice(3) // Last 2 cards (2 columns)
+  return [
+    { cards: row1, gridCols: 'md:grid-cols-3' },
+    { cards: row2, gridCols: 'md:grid-cols-2' }
+  ]
 })
 
 // Project filter options
@@ -163,11 +240,9 @@ const statusOptions = computed(() => {
   ]
 })
 
-// formatStatus is already imported from useCommissionFormatters
-
 // Total statistics should show all commissions, not filtered ones
 const totals = computed(() => {
-  const list = commissions.value
+  const list: any[] = commissions.value || []
   const result = {
     // Total Contract Amount: Sum all contract_amount
     totalContractAmountVND: 0,
@@ -208,72 +283,6 @@ const totals = computed(() => {
   return result
 })
 
-const perProject = computed(() => {
-  const map: Record<string, { project_id: string, total: number, confirmed: number, paid: number, count: number }> = {}
-  for (const c of filteredCommissions.value) {
-    const key = c.project_id
-    if (!map[key]) map[key] = { project_id: key, total: 0, confirmed: 0, paid: 0, count: 0 }
-    map[key].total += Number(c.value || 0)
-    map[key].confirmed += c.status === 'confirmed' ? Number(c.value || 0) : 0
-    map[key].paid += c.status === 'paid' ? Number(c.value || 0) : 0
-    map[key].count += 1
-  }
-  return Object.values(map)
-})
-
-// Helper functions for table display
-const getOriginalValueDisplay = (commission: any) => {
-  return commission.contract_amount != null ? commission.contract_amount : (commission.original_value != null ? commission.original_value : commission.value)
-}
-
-const getCommissionReceivedDisplay = (commission: any) => {
-  // If status is confirmed or paid, use the stored value
-  if (commission.status === 'confirmed' || commission.status === 'paid') {
-    return commission.value
-  }
-  
-  // For requested status: calculate
-  if (commission.contract_amount != null && commission.commission_rate != null) {
-    return Number(commission.contract_amount || 0) * (Number(commission.commission_rate || 0) / 100)
-  }
-  
-  // Fallback: calculate based on ref_percentage from project
-  const projectId = commission.project_id
-  if (projectId && projectRefPercentages.value[projectId]) {
-    const refPercentage = projectRefPercentages.value[projectId]
-    if (refPercentage > 0) {
-      const originalValue = commission.original_value != null ? commission.original_value : commission.value
-      return originalValue * (refPercentage / 100)
-    }
-  }
-  
-  return commission.value
-}
-
-const getProjectName = (projectId?: string) => {
-  if (!projectId) return '—'
-  const project = projects.value.find(p => p.id === projectId)
-  return project?.name || projectId
-}
-
-const getStatusColor = (status: string) => {
-  if (status === 'paid') return 'green'
-  if (status === 'confirmed') return 'blue'
-  return 'yellow'
-}
-
-// Table columns
-const tableColumns = computed(() => [
-  { key: 'date', label: t('common.date') },
-  { key: 'project_id', label: t('common.project') },
-  { key: 'client_name', label: t('commissions.clientName') },
-  { key: 'description', label: t('common.description') },
-  { key: 'value', label: t('commissions.contractAmount') },
-  { key: 'commission_rate', label: t('commissions.commissionRate') },
-  { key: 'commission_received', label: t('commissions.commissionAmount') },
-  { key: 'status', label: t('common.status') },
-  { key: 'actions', label: t('common.actions') },
-])
 
 // Project count should show all projects that user has joined (from user_project_info)
 // This matches the dropdown options in "New Commission"
@@ -287,20 +296,22 @@ const submit = async () => {
       .from('commissions')
       .insert({
         user_id: user.value.id,
-        project_id: form.project_id,
+        project_id: form.project_id || null,
         client_name: form.client_name || null,
-        description: form.description,
-        contract_amount: form.contract_amount,
+        description: form.description || null,
+        contract_amount: form.contract_amount ?? null,
         value: 0, // Will be calculated by admin when setting commission_rate
-        original_value: form.contract_amount, // Store contract amount as original value
+        original_value: form.contract_amount ?? null, // Store contract amount as original value
         currency: 'VND',
         status: 'requested',
-      })
-    if (error) throw error
+      } as any)
+    if (error) {
+      throw error // Re-throw to be caught by catch block
+    }
     form.project_id = ''
     form.client_name = ''
     form.description = ''
-    ;(form as any).contract_amount = undefined
+    form.contract_amount = null
     isCreateOpen.value = false
     await fetchCommissions()
   } finally {
@@ -312,23 +323,36 @@ const openEdit = (row: any) => {
   if (row.status === 'confirmed' || row.status === 'paid') return
   editDraft.id = row.id
   editDraft.client_name = row.client_name || ''
-  editDraft.description = row.description
+  editDraft.description = row.description || ''
   // Use contract_amount if exists, otherwise use original_value or value
-  ;(editDraft as any).contract_amount = row.contract_amount != null ? row.contract_amount : (row.original_value != null ? row.original_value : row.value)
+  editDraft.contract_amount = row.contract_amount != null ? row.contract_amount : (row.original_value != null ? row.original_value : row.value)
   isModalOpen.value = true
 }
 
+// Computed draft for edit modal (only Draft fields, without id)
+const editDraftForModal = computed<{
+  client_name?: string
+  description?: string
+  contract_amount?: number | null
+}>(() => ({
+  client_name: editDraft.client_name,
+  description: editDraft.description,
+  contract_amount: editDraft.contract_amount,
+}))
+
 const saveEdit = async () => {
+  if (!editDraft.id) return
   const idx = commissions.value.findIndex(c => c.id === editDraft.id)
   if (idx === -1) return
   // When editing requested commission, update contract_amount
-  await supabase.from('commissions').update({ 
+  const updateData: Record<string, any> = {
     client_name: editDraft.client_name || null,
-    description: editDraft.description, 
-    contract_amount: editDraft.contract_amount,
-    original_value: editDraft.contract_amount, // Store contract_amount as original_value
+    description: editDraft.description || null, 
+    contract_amount: editDraft.contract_amount ?? null,
+    original_value: editDraft.contract_amount ?? null, // Store contract_amount as original_value
     currency: 'VND'
-  }).eq('id', editDraft.id)
+  }
+  await (supabase as any).from('commissions').update(updateData).eq('id', editDraft.id)
   await fetchCommissions()
   isModalOpen.value = false
 }
@@ -341,7 +365,7 @@ const saveEdit = async () => {
       <template #header>
         <div class="flex items-center justify-between">
           <h2 class="font-semibold">{{ $t('commissions.myCommissionRequests') }}</h2>
-          <UButton color="primary" @click="isCreateOpen = true">{{ $t('commissions.newCommission') }}</UButton>
+          <ActionButton type="create" :label="$t('commissions.newCommission')" @click="isCreateOpen = true" />
         </div>
       </template>
 
@@ -352,189 +376,77 @@ const saveEdit = async () => {
 
       <template v-else>
       <!-- Statistics Cards -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div v-for="(row, rowIndex) in statisticsCardsByRow" :key="rowIndex" :class="['grid grid-cols-1 gap-4 mb-6', row.gridCols]">
         <StatisticsCard
-          :title="$t('commissions.projectsJoined')"
-          icon="i-lucide-folders"
-          icon-color="blue"
-          :value="projectCount"
-        />
-        <StatisticsCard
-          :title="$t('commissions.totalContractAmount')"
-          icon="i-lucide-file-text"
-          icon-color="blue"
-          :value-VND="totals.totalContractAmountVND"
-        />
-        <StatisticsCard
-          :title="$t('commissions.pendingContractAmount')"
-          icon="i-lucide-clock"
-          icon-color="yellow"
-          :value-VND="totals.pendingContractAmountVND"
-        />
-      </div>
-
-      <!-- Row 2: Received Commission, Pending Commission -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <StatisticsCard
-          :title="$t('commissions.receivedCommission')"
-          icon="i-lucide-badge-dollar-sign"
-          icon-color="green"
-          :value-VND="totals.receivedCommissionVND"
-        />
-        <StatisticsCard
-          :title="$t('commissions.pendingCommission')"
-          icon="i-lucide-hourglass"
-          icon-color="orange"
-          :value-VND="totals.pendingCommissionVND"
+          v-for="(card, cardIndex) in row.cards"
+          :key="cardIndex"
+          :title="card.title"
+          :icon="card.icon"
+          :icon-color="card.iconColor"
+          :value="card.value"
+          :value-VND="card.valueVND"
         />
       </div>
 
       <!-- Filters -->
       <div class="mb-4">
-        <div class="flex items-center gap-3 flex-wrap">
-            <span class="text-sm text-gray-500 dark:text-white font-medium">{{ $t('common.filter') }}:</span>
-            <div class="flex items-center gap-2">
-              <span class="text-sm text-gray-600 dark:text-white">{{ $t('common.year') }}:</span>
-              <USelect v-model="selectedYear" :options="yearOptions" />
-            </div>
-            <div class="flex items-center gap-2">
-              <span class="text-sm text-gray-600 dark:text-white">{{ $t('common.month') }}:</span>
-              <USelect v-model="selectedMonth" :options="monthOptions" />
-            </div>
-            <div class="flex items-center gap-2">
-              <span class="text-sm text-gray-600 dark:text-white">{{ $t('common.project') }}:</span>
-              <USelect v-model="selectedProject" :options="projectOptions" :placeholder="$t('common.all')" />
-            </div>
-            <div class="flex items-center gap-2">
-              <span class="text-sm text-gray-600 dark:text-white">{{ $t('common.status') }}:</span>
-              <USelect v-model="selectedStatus" :options="statusOptions" :placeholder="$t('common.all')" />
-            </div>
-        </div>
+        <CommissionFilters
+          v-model="filters"
+          :show-project="true"
+          :project-options="projectOptions"
+          :show-status="true"
+          :status-options="statusOptions"
+          :show-year="true"
+          :show-month="true"
+          layout="inline"
+        />
       </div>
 
       <!-- Commissions Table -->
-      <UTable 
-        :rows="filteredCommissions" 
-        :columns="tableColumns"
-      >
-        <template #date-data="{ row }">
-          <span class="text-gray-900 dark:text-white">{{ formatDate(row.date) }}</span>
-        </template>
-        
-        <template #project_id-data="{ row }">
-          <span class="text-gray-900 dark:text-primary font-medium">{{ getProjectName(row.project_id) }}</span>
-        </template>
-        
-        <template #client_name-data="{ row }">
-          <span class="text-gray-900 dark:text-white">{{ row.client_name || '—' }}</span>
-        </template>
-        
-        <template #description-data="{ row }">
-          <span class="text-gray-900 dark:text-white">{{ row.description || '—' }}</span>
-        </template>
-        
-        <template #value-data="{ row }">
-          <span class="text-gray-900 dark:text-white">{{ formatValue(getOriginalValueDisplay(row), row.currency || 'VND') }}</span>
-        </template>
-        
-        <template #commission_rate-data="{ row }">
-          <span class="text-gray-900 dark:text-white">{{ row.commission_rate != null ? `${row.commission_rate}%` : '—' }}</span>
-        </template>
-        
-        <template #commission_received-data="{ row }">
-          <span class="text-gray-900 dark:text-white">{{ formatValue(getCommissionReceivedDisplay(row), row.currency || 'VND') }}</span>
-        </template>
-        
-        <template #status-data="{ row }">
-          <UBadge 
-            :label="formatStatus(row.status || 'unknown')" 
-            :color="getStatusColor(row.status)" 
-            variant="soft" 
-          />
-        </template>
-        
-        <template #actions-data="{ row }">
-          <div class="flex gap-2">
-            <UButton 
-              v-if="row.status === 'requested'"
-              size="xs" 
-              color="gray" 
-              variant="outline" 
-              class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700"
-              @click="openEdit(row)"
-            >
-              {{ $t('common.edit') }}
-            </UButton>
-            <span v-else class="text-xs text-gray-400 dark:text-gray-500">—</span>
-          </div>
-        </template>
-        
-        <template #empty>
-          <div class="text-sm text-gray-500 dark:text-white py-8 text-center">
-            {{ $t('commissions.noCommissions') }}
-          </div>
-        </template>
-      </UTable>
+      <CommissionsTable
+        :commissions="filteredCommissions"
+        :show-project="true"
+        :can-edit="true"
+        :project-ref-info="Object.fromEntries(Object.entries(projectRefPercentages).map(([k,v]) => [k, { ref_percentage: v }]))"
+        :projects-map="Object.fromEntries(projects.map(p => [p.id, p.name || p.id]))"
+        @edit="openEdit"
+      />
 
-      <UModal v-model="isModalOpen">
-          <UCard>
-            <template #header>
-              <h3 class="font-semibold">{{ $t('commissions.editCommission') }}</h3>
-            </template>
-            <div class="space-y-4">
-              <UFormGroup :label="$t('commissions.clientName')">
-                <UInput v-model="editDraft.client_name" :placeholder="$t('commissions.clientNamePlaceholder')" />
-              </UFormGroup>
-              <UFormGroup :label="$t('common.description')">
-                <UTextarea v-model="editDraft.description" />
-              </UFormGroup>
-              <UFormGroup :label="$t('commissions.contractAmount')">
-                <UInput v-model.number="(editDraft as any).contract_amount" type="number" step="0.01" />
-              </UFormGroup>
-            </div>
-            <template #footer>
-              <div class="flex justify-end gap-2">
-                <UButton color="gray" variant="outline" class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700" @click="isModalOpen = false">{{ $t('common.cancel') }}</UButton>
-                <UButton color="primary" @click="saveEdit">{{ $t('common.save') }}</UButton>
-              </div>
-            </template>
-          </UCard>
-        </UModal>
+      <CommissionsModal
+        v-model="isModalOpen"
+        :title="$t('commissions.editCommission')"
+        :draft="editDraftForModal"
+        :show-project="false"
+        :show-status="false"
+        :show-rate="false"
+        confirm-type="save"
+        @update:draft="val => {
+          editDraft.client_name = val.client_name || ''
+          editDraft.description = val.description || ''
+          editDraft.contract_amount = val.contract_amount ?? null
+        }"
+        @cancel="() => { isModalOpen = false }"
+        @confirm="saveEdit"
+      />
 
-        <UModal v-model="isCreateOpen">
-          <UCard>
-            <template #header>
-              <h3 class="font-semibold">{{ $t('commissions.newCommission') }}</h3>
-            </template>
-            <div class="space-y-4">
-              <UFormGroup :label="$t('common.project')">
-                <USelect v-model="form.project_id" :options="projects.map(p => ({ label: p.name || p.id, value: p.id }))" />
-              </UFormGroup>
-              <UFormGroup :label="$t('commissions.clientName')">
-                <UInput v-model="form.client_name" :placeholder="$t('commissions.clientNamePlaceholder')" @keyup.enter="submit" />
-              </UFormGroup>
-              <UFormGroup :label="$t('common.description')">
-                <UTextarea v-model="form.description" />
-              </UFormGroup>
-              <UFormGroup :label="$t('commissions.contractAmount')">
-                <UInput v-model.number="form.contract_amount" type="number" step="0.01" @keyup.enter="submit" />
-              </UFormGroup>
-            </div>
-            <template #footer>
-              <div class="flex justify-end gap-2">
-                <UButton color="gray" variant="outline" class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700" @click="isCreateOpen = false">{{ $t('common.cancel') }}</UButton>
-                <UButton color="primary" @click="submit" :loading="isLoading" :disabled="isLoading || !form.project_id || !form.contract_amount">{{ $t('common.create') }}</UButton>
-              </div>
-            </template>
-          </UCard>
-        </UModal>
+      <CommissionsModal
+        v-model="isCreateOpen"
+        :title="$t('commissions.newCommission')"
+        :draft="form"
+        :show-project="true"
+        :project-options="projects.map(p => ({ label: p.name || p.id, value: p.id }))"
+        :show-status="false"
+        :show-rate="false"
+        confirm-type="create"
+        :confirm-loading="isLoading"
+        :confirm-disabled="isLoading || !form.project_id || !form.contract_amount"
+        @update:draft="val => Object.assign(form, val)"
+        @cancel="() => { isCreateOpen = false }"
+        @confirm="submit"
+      />
       </template>
     </UCard>
   </div>
 </template>
 
 <style scoped></style>
-
-
-
-

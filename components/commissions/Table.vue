@@ -36,6 +36,7 @@ interface Emits {
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  commissions: () => [],
   showProject: false,
   showUser: false,
   canEdit: false,
@@ -45,6 +46,13 @@ const props = withDefaults(defineProps<Props>(), {
   projectsMap: () => ({}),
   usersMap: () => ({}),
   loading: false,
+})
+
+// Ensure commissions is always an array
+const commissionsArray = computed(() => {
+  if (!props.commissions) return []
+  if (Array.isArray(props.commissions)) return props.commissions
+  return []
 })
 
 const emit = defineEmits<Emits>()
@@ -128,20 +136,32 @@ const columns = computed(() => {
   
   return cols
 })
+
+const emptyState = computed(() => ({
+  icon: 'i-lucide-inbox',
+  label: t('commissions.noCommissions')
+}))
 </script>
 
 <template>
-  <div class="w-full overflow-x-auto" style="width: 100%; display: block; min-height: 200px;">
+  <div class="w-full min-h-[200px]">
+    <!-- Debug info -->
+    <div v-if="false" class="text-xs text-gray-400 mb-2">
+      Debug: loading={{ props.loading }}, commissions.length={{ commissionsArray.length }}, isArray={{ Array.isArray(props.commissions) }}
+    </div>
+    
     <div v-if="props.loading" class="flex items-center justify-center py-8">
       <UIcon name="i-lucide-loader-2" class="w-6 h-6 animate-spin text-gray-400" />
       <span class="ml-2 text-gray-500">{{ $t('common.loading') || 'Loading...' }}</span>
     </div>
-    <UTable 
-      v-else-if="props.commissions && props.commissions.length > 0"
-      :rows="props.commissions" 
-      :columns="columns" 
-      style="width: 100%; min-width: 100%; display: table;"
-    >
+    <div v-else class="w-full overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-lg">
+      <UTable 
+        :rows="commissionsArray.length > 0 ? commissionsArray : []" 
+        :columns="columns"
+        class="w-full"
+        :ui="{ wrapper: 'w-full overflow-x-auto' }"
+        :empty-state="emptyState"
+      >
     <template #date-data="{ row }">
       <span class="text-gray-900 dark:text-white">{{ formatDate(row.date) }}</span>
     </template>
@@ -198,32 +218,21 @@ const columns = computed(() => {
     
     <template v-if="props.canEdit || props.canApprove" #actions-data="{ row }">
       <div class="flex gap-2">
-        <UButton 
+        <ActionButton
           v-if="props.canEdit && row.status !== 'paid'"
-          size="xs" 
-          color="gray" 
-          variant="outline" 
-          class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700"
+          type="edit"
           @click="emit('edit', row)"
-        >
-          {{ $t('common.edit') }}
-        </UButton>
-        <UButton 
+        />
+        <ActionButton
           v-if="props.canApprove && row.status === 'requested'"
-          size="xs" 
-          color="green" 
-          variant="soft"
+          type="approve"
           @click="emit('approve', row)"
-        >
-          {{ $t('projects.approve') }}
-        </UButton>
+        />
         <span v-if="!props.canEdit && !props.canApprove" class="text-xs text-gray-400">—</span>
       </div>
     </template>
     
     </UTable>
-    <div v-else class="text-sm text-gray-500 dark:text-white py-8 text-center">
-      {{ $t('commissions.noCommissions') }}
     </div>
   </div>
 </template>

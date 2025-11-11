@@ -3,16 +3,19 @@
 
   definePageMeta({
     middleware: 'guest',
-    layout: 'auth'
+    layout: 'auth',
+    auth: false,
   })
 
   useSeoMeta({
-    title: 'Sign In - Nuxt Supabase Starter',
+    title: 'Sign In - Verichains Referral',
   })
 
   const { auth } = useSupabaseClient()
   const { errorHandler } = useErrorHandler()
   const colorMode = useColorMode()
+  const user = useSupabaseUser()
+  const route = useRoute()
   
   const isLoading = ref(false)
 
@@ -22,7 +25,7 @@
       const signIn = await auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/confirm`
+          redirectTo: `${window.location.origin}/confirm`,
         }
       })
       if(signIn?.error) {
@@ -34,6 +37,14 @@
       errorHandler(error as BaseError)
     }
   }
+
+  onMounted(async () => {
+    // Nếu đã đăng nhập rồi thì chuyển thẳng
+    if (user.value) return navigateTo('/', { replace: true })
+
+    // Nếu có ?code=... (vừa từ OAuth), đừng auto gọi OAuth nữa
+    if (route.query.code) return
+  })
 
   /**
    * Sign in with a provider.
