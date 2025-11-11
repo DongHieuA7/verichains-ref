@@ -40,27 +40,54 @@ const emit = defineEmits<{
   (e: 'update:modelValue', value: Draft): void
 }>()
 
+const updateDraft = (updates: Partial<Draft>) => {
+  emit('update:modelValue', { ...props.modelValue, ...updates })
+}
+
 const draft = computed<Draft>({
   get: () => props.modelValue,
   set: (val) => emit('update:modelValue', val),
 })
 
-// Clamp commission_rate to [minRate, maxRate]
-watch(
-  () => draft.value.commission_rate,
-  (rate, oldRate) => {
-    if (!props.showRate) return
-    if (rate == null) return
+// Individual computed properties for v-model binding
+const projectId = computed({
+  get: () => draft.value.project_id,
+  set: (val) => updateDraft({ project_id: val }),
+})
+
+const clientName = computed({
+  get: () => draft.value.client_name,
+  set: (val) => updateDraft({ client_name: val }),
+})
+
+const description = computed({
+  get: () => draft.value.description,
+  set: (val) => updateDraft({ description: val }),
+})
+
+const contractAmount = computed({
+  get: () => draft.value.contract_amount,
+  set: (val) => updateDraft({ contract_amount: val }),
+})
+
+const commissionRate = computed({
+  get: () => draft.value.commission_rate,
+  set: (val) => {
+    if (val == null) {
+      updateDraft({ commission_rate: val })
+      return
+    }
     const min = Number(props.minRate ?? 0)
     const max = Number(props.maxRate ?? 100)
-    // Only clamp if the value is actually out of range and different from old value
-    if (rate < min && rate !== oldRate) {
-      emit('update:modelValue', { ...draft.value, commission_rate: min })
-    } else if (rate > max && rate !== oldRate) {
-      emit('update:modelValue', { ...draft.value, commission_rate: max })
-    }
-  }
-)
+    const clamped = Math.max(min, Math.min(max, Number(val)))
+    updateDraft({ commission_rate: clamped })
+  },
+})
+
+const status = computed({
+  get: () => draft.value.status,
+  set: (val) => updateDraft({ status: val }),
+})
 
 const calculatedAmount = computed(() => {
   const amount = draft.value.contract_amount
@@ -84,24 +111,24 @@ const formatValue = (val: number | null | undefined, currency: string) => {
 <template>
   <div class="space-y-4">
     <UFormGroup v-if="showProject" :label="$t('common.project')">
-      <USelect v-model="draft.project_id" :options="projectOptions" />
+      <USelect v-model="projectId" :options="projectOptions" />
     </UFormGroup>
 
     <UFormGroup :label="$t('commissions.clientName')">
-      <UInput v-model="draft.client_name" :placeholder="$t('commissions.clientNamePlaceholder')" />
+      <UInput v-model="clientName" :placeholder="$t('commissions.clientNamePlaceholder')" />
     </UFormGroup>
 
     <UFormGroup :label="$t('common.description')">
-      <UTextarea v-model="draft.description" :rows="3" />
+      <UTextarea v-model="description" :rows="3" />
     </UFormGroup>
 
     <UFormGroup :label="$t('commissions.contractAmount')">
-      <UInput v-model.number="(draft as any).contract_amount" type="number" step="0.01" />
+      <UInput v-model.number="contractAmount" type="number" step="0.01" />
     </UFormGroup>
 
     <UFormGroup v-if="showRate" :label="$t('commissions.commissionRate')">
       <UInput
-        v-model.number="(draft as any).commission_rate"
+        v-model.number="commissionRate"
         type="number"
         step="0.01"
         :min="minRate"
@@ -117,7 +144,7 @@ const formatValue = (val: number | null | undefined, currency: string) => {
     </UFormGroup>
 
     <UFormGroup v-if="showStatus" :label="$t('common.status')">
-      <USelect v-model="draft.status" :options="statusOptions" />
+      <USelect v-model="status" :options="statusOptions" />
     </UFormGroup>
   </div>
   
