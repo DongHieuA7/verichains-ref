@@ -48,15 +48,16 @@ const draft = computed<Draft>({
 // Clamp commission_rate to [minRate, maxRate]
 watch(
   () => draft.value.commission_rate,
-  (rate) => {
+  (rate, oldRate) => {
     if (!props.showRate) return
     if (rate == null) return
     const min = Number(props.minRate ?? 0)
     const max = Number(props.maxRate ?? 100)
-    if (rate < min) {
-      draft.value = { ...draft.value, commission_rate: min }
-    } else if (rate > max) {
-      draft.value = { ...draft.value, commission_rate: max }
+    // Only clamp if the value is actually out of range and different from old value
+    if (rate < min && rate !== oldRate) {
+      emit('update:modelValue', { ...draft.value, commission_rate: min })
+    } else if (rate > max && rate !== oldRate) {
+      emit('update:modelValue', { ...draft.value, commission_rate: max })
     }
   }
 )
