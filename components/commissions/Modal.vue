@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import BaseModal from '~/components/Modal.vue'
+
 interface Draft {
   project_id?: string
   client_name?: string
@@ -73,7 +75,7 @@ const onCancel = () => {
 </script>
 
 <template>
-  <Modal v-model="isOpen" :title="title">
+  <BaseModal v-model="isOpen" :title="title">
     <CommissionsForm
       v-model="(localDraft as any)"
       :show-project="showProject"
@@ -98,6 +100,6 @@ const onCancel = () => {
         />
       </div>
     </template>
-  </Modal>
+  </BaseModal>
 </template>
 
